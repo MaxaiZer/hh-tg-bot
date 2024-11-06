@@ -1,0 +1,62 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      docker:
+        image: docker:20.10.7
+        options: --privileged
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Install dependencies
+      run: go mod tidy
+
+    - name: Run tests
+      run: |
+        make test
+
+    - name: Set up docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to docker hub with GitHub PAT
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set lowercase docker image prefix
+      run: echo "PREFIX_LC=${PREFIX,,}" >> ${GITHUB_ENV}
+      env:
+        PREFIX: '${{ github.repository_owner }}'
+
+    - name: Build and push docker image
+      id: build_image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: Dockerfile
+        tags: ghcr.io/${{ env.PREFIX_LC }}/hh-tg-bot:latest
+        push: true

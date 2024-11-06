@@ -34,3 +34,4 @@ nginx.conf
 **/.zip
 **/test
 godana.yaml
+logs

@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile
     environment:
       TOKEN: ${TOKEN}
+      AI_KEY: ${AI_KEY}
     depends_on:
       - prometheus
     ports:

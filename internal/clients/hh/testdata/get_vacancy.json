@@ -1,0 +1,161 @@
+{
+  "id": "108444291",
+  "premium": false,
+  "billing_type": {
+    "id": "standard_plus",
+    "name": "Стандарт плюс"
+  },
+  "relations": [],
+  "name": "Младший Back-end разработчик",
+  "insider_interview": null,
+  "response_letter_required": false,
+  "area": {
+    "id": "1",
+    "name": "Москва",
+    "url": "https://api.hh.ru/areas/1"
+  },
+  "salary": {
+    "from": 80000,
+    "to": 100000,
+    "currency": "RUR",
+    "gross": true
+  },
+  "type": {
+    "id": "open",
+    "name": "Открытая"
+  },
+  "address": {
+    "city": "Москва",
+    "street": "Долгопрудненское шоссе",
+    "building": "3",
+    "lat": 55.921612,
+    "lng": 37.534927,
+    "description": null,
+    "raw": "Москва, Долгопрудненское шоссе, 3",
+    "metro": {
+      "station_name": "Лианозово",
+      "line_name": "Люблинско-Дмитровская",
+      "station_id": "10.834",
+      "line_id": "10",
+      "lat": 55.931111,
+      "lng": 37.543611
+    },
+    "metro_stations": [
+      {
+        "station_name": "Лианозово",
+        "line_name": "Люблинско-Дмитровская",
+        "station_id": "10.834",
+        "line_id": "10",
+        "lat": 55.931111,
+        "lng": 37.543611
+      },
+      {
+        "station_name": "Новодачная",
+        "line_name": "МЦД-1",
+        "station_id": "131.692",
+        "line_id": "131",
+        "lat": 55.924459,
+        "lng": 37.527877
+      },
+      {
+        "station_name": "Физтех",
+        "line_name": "Люблинско-Дмитровская",
+        "station_id": "10.833",
+        "line_id": "10",
+        "lat": 55.921389,
+        "lng": 37.546389
+      }
+    ]
+  },
+  "allow_messages": true,
+  "experience": {
+    "id": "noExperience",
+    "name": "Нет опыта"
+  },
+  "schedule": {
+    "id": "fullDay",
+    "name": "Полный день"
+  },
+  "employment": {
+    "id": "full",
+    "name": "Полная занятость"
+  },
+  "department": null,
+  "contacts": null,
+  "description": "<p><strong>ООО «Роболайн Софтлаб»</strong> – российская аккредитованная ИТ-компания с небольшой командой, специализирующаяся на разработке программного обеспечения удалённого доступа, отладки, управления и мониторинга промышленных систем. Мы реализуем проекты промышленной автоматизации уже более 15 лет.</p> <p> </p> <p>Работа с нами – это дружный коллектив, минимум бюрократии и быстрые процессы, а также возможность обучения и роста по профилю работы. Мы – растущая команда, готовая принять в свои ряды сотрудников без опыта работы с хорошими базовыми знаниями (приоритетно высшее профильное образование) и желанием развиваться.</p> <p> </p> <p><strong>В данный момент мы находимся в поисках младшего Back-End программиста, задачи которого будут включать, например:</strong></p> <ul> <li> <p>Разработка микросервисов, которые обеспечивают работу разных частей большого проекта, например, обработку платежей или отправку уведомлений.</p> </li> <li> <p>Разработка REST API для обеспечения функциональности веб-сайтов и приложений.</p> </li> </ul> <p> </p> <p><strong>Стек используемых технологий:</strong></p> <ul> <li> <p>.NET, C#</p> </li> <li> <p>Python, Golang</p> </li> </ul> <p> </p> <p><strong>Требования к кандидатам:</strong></p> <ul> <li> <p>Языки программирования Python/Golang, C#.</p> </li> <li> <p>Понимание принципа работы REST API, HTTP и клиент-серверной архитектуры.</p> </li> <li> <p>Знание основ работы с реляционными и/или нереляционными базами данных (например, PostgreSQL, MongoDB, MS SQL Server).</p> </li> <li> <p>Понимание принципов построения микросервисной архитектуры.</p> </li> <li> <p>Умение разбираться в коде других разработчиков.</p> </li> <li> <p>Знание систем управления проектами (github, gitlab).</p> </li> <li> <p>Знание английского языка на уровне чтения документации.</p> </li> </ul> <p> </p> <p><strong>Преимуществом будет:</strong></p> <ul> <li> <p>Опыт разработки приложений с использованием .NET (в том числе в рамках учебных проектов).</p> </li> <li> <p>Опыт разработки REST API на любом языке программирования (приоритет C#) (в том числе в рамках учебных проектов).</p> </li> </ul> <p><strong>Мы предлагаем:</strong></p> <ul> <li>Официальное трудоустройство по ТК РФ.</li> <li>Полностью белая зарплата, оплачиваемые отпуск и больничные.</li> <li>Фиксированный график работы 5/2 c 9:00 до 18:00 с работой из офиса.</li> <li>Офис в пешей доступности от станции метро «Физтех».</li> <li>Оборудованная обеденная зона с микроволновкой и чайником.</li> <li>Возможность карьерного роста и развития по интересующим направлениям.</li> <li>Оборудованное рабочее место с мощным ПК и всеми необходимыми для работы компонентами.</li> <li>Участие в разработке нового продукта.</li> <li>Интересные задачи, которые предоставляют возможности для креативного развития и воплощения новых идей.</li> <li>Дружный коллектив и постоянное менторство со стороны старших разработчиков.</li> </ul>",
+  "branded_description": null,
+  "vacancy_constructor_template": null,
+  "key_skills": [
+    {
+      "name": ".NET Framework"
+    },
+    {
+      "name": "Python"
+    },
+    {
+      "name": "Golang"
+    },
+    {
+      "name": "C#"
+    },
+    {
+      "name": "REST API"
+    },
+    {
+      "name": "PostgreSQL"
+    },
+    {
+      "name": "Микросервисная архитектура"
+    }
+  ],
+  "accept_handicapped": false,
+  "accept_kids": false,
+  "archived": false,
+  "response_url": null,
+  "specializations": [],
+  "professional_roles": [
+    {
+      "id": "96",
+      "name": "Программист, разработчик"
+    }
+  ],
+  "code": null,
+  "hidden": false,
+  "quick_responses_allowed": false,
+  "driver_license_types": [],
+  "accept_incomplete_resumes": false,
+  "employer": {
+    "id": "370421",
+    "name": "Роболайн",
+    "url": "https://api.hh.ru/employers/370421",
+    "alternate_url": "https://hh.ru/employer/370421",
+    "logo_urls": null,
+    "vacancies_url": "https://api.hh.ru/vacancies?employer_id=370421",
+    "accredited_it_employer": false,
+    "trusted": true
+  },
+  "published_at": "2024-10-19T09:12:58+0300",
+  "created_at": "2024-10-19T09:12:58+0300",
+  "initial_created_at": "2024-10-10T09:12:58+0300",
+  "negotiations_url": null,
+  "suitable_resumes_url": null,
+  "apply_alternate_url": "https://hh.ru/applicant/vacancy_response?vacancyId=108444291",
+  "has_test": false,
+  "test": null,
+  "alternate_url": "https://hh.ru/vacancy/108444291",
+  "working_days": [],
+  "working_time_intervals": [],
+  "working_time_modes": [],
+  "accept_temporary": false,
+  "languages": [
+    {
+      "id": "eng",
+      "name": "Английский",
+      "level": {
+        "id": "b1",
+        "name": "B1 — Средний"
+      }
+    }
+  ],
+  "approved": true
+}

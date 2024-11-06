@@ -1,0 +1,168 @@
+{
+  "items": [
+    {
+      "id": "107958774",
+      "premium": false,
+      "name": "Разработчик веб-приложений / фронтенд / верстальщик HTML (Junior)",
+      "department": null,
+      "has_test": false,
+      "response_letter_required": true,
+      "area": {
+        "id": "1",
+        "name": "Москва",
+        "url": "https://api.hh.ru/areas/1"
+      },
+      "salary": {
+        "from": 40000,
+        "to": null,
+        "currency": "RUR",
+        "gross": false
+      },
+      "type": {
+        "id": "open",
+        "name": "Открытая"
+      },
+      "address": null,
+      "response_url": null,
+      "sort_point_distance": null,
+      "published_at": "2024-09-30T18:51:49+0300",
+      "created_at": "2024-09-30T18:51:49+0300",
+      "archived": false,
+      "apply_alternate_url": "https://hh.ru/applicant/vacancy_response?vacancyId=107958774",
+      "show_logo_in_search": null,
+      "insider_interview": null,
+      "url": "https://api.hh.ru/vacancies/107958774?host=hh.ru",
+      "alternate_url": "https://hh.ru/vacancy/107958774",
+      "relations": [],
+      "employer": {
+        "id": "3463610",
+        "name": "Братство Кодеров",
+        "url": "https://api.hh.ru/employers/3463610",
+        "alternate_url": "https://hh.ru/employer/3463610",
+        "logo_urls": {
+          "original": "https://img.hhcdn.ru/employer-logo-original/1276089.png",
+          "90": "https://img.hhcdn.ru/employer-logo/6724658.png",
+          "240": "https://img.hhcdn.ru/employer-logo/6724659.png"
+        },
+        "vacancies_url": "https://api.hh.ru/vacancies?employer_id=3463610",
+        "accredited_it_employer": true,
+        "trusted": true
+      },
+      "snippet": {
+        "requirement": "Желание освоить на высоком уровне JavaScript или PHP8 и <highlighttext>golang</highlighttext>. Желание работать в команде, комментировать код, работать с git...",
+        "responsibility": "Быстрая и качественная верстка макетов из Figma, Photoshop. Поддержка и развитие сайтов unisender.com и unibase.ru. Участие в разработке существующих и..."
+      },
+      "contacts": null,
+      "schedule": {
+        "id": "remote",
+        "name": "Удаленная работа"
+      },
+      "working_days": [],
+      "working_time_intervals": [],
+      "working_time_modes": [],
+      "accept_temporary": false,
+      "professional_roles": [
+        {
+          "id": "96",
+          "name": "Программист, разработчик"
+        }
+      ],
+      "accept_incomplete_resumes": false,
+      "experience": {
+        "id": "noExperience",
+        "name": "Нет опыта"
+      },
+      "employment": {
+        "id": "full",
+        "name": "Полная занятость"
+      },
+      "adv_response_url": null,
+      "is_adv_vacancy": false,
+      "adv_context": null
+    },
+    {
+      "id": "108122273",
+      "premium": false,
+      "name": "Junior/Junior+ Golang developer",
+      "department": null,
+      "has_test": false,
+      "response_letter_required": false,
+      "area": {
+        "id": "1",
+        "name": "Москва",
+        "url": "https://api.hh.ru/areas/1"
+      },
+      "salary": null,
+      "type": {
+        "id": "open",
+        "name": "Открытая"
+      },
+      "address": null,
+      "response_url": null,
+      "sort_point_distance": null,
+      "published_at": "2024-10-03T12:42:25+0300",
+      "created_at": "2024-10-03T12:42:25+0300",
+      "archived": false,
+      "apply_alternate_url": "https://hh.ru/applicant/vacancy_response?vacancyId=108122273",
+      "show_logo_in_search": null,
+      "insider_interview": null,
+      "url": "https://api.hh.ru/vacancies/108122273?host=hh.ru",
+      "alternate_url": "https://hh.ru/vacancy/108122273",
+      "relations": [],
+      "employer": {
+        "id": "4056860",
+        "name": "Передовые Системы Обучения и Контроля",
+        "url": "https://api.hh.ru/employers/4056860",
+        "alternate_url": "https://hh.ru/employer/4056860",
+        "logo_urls": {
+          "original": "https://img.hhcdn.ru/employer-logo-original/939344.png",
+          "240": "https://img.hhcdn.ru/employer-logo/4197921.png",
+          "90": "https://img.hhcdn.ru/employer-logo/4197920.png"
+        },
+        "vacancies_url": "https://api.hh.ru/vacancies?employer_id=4056860",
+        "accredited_it_employer": false,
+        "trusted": true
+      },
+      "snippet": {
+        "requirement": "Базовые владение <highlighttext>Golang</highlighttext> и его стандартной библиотекой, go-модулями, интерфейсами, каналами. Знание стандартных паттернов реализации проекта на <highlighttext>GoLang</highlighttext> (как функционал...",
+        "responsibility": "Проектирование и реализация API для новых фич, а также схемы хранения в БД. Доработка существующих фич. Создание unit, интеграционных тестов. "
+      },
+      "contacts": null,
+      "schedule": {
+        "id": "remote",
+        "name": "Удаленная работа"
+      },
+      "working_days": [],
+      "working_time_intervals": [],
+      "working_time_modes": [],
+      "accept_temporary": true,
+      "professional_roles": [
+        {
+          "id": "96",
+          "name": "Программист, разработчик"
+        }
+      ],
+      "accept_incomplete_resumes": false,
+      "experience": {
+        "id": "noExperience",
+        "name": "Нет опыта"
+      },
+      "employment": {
+        "id": "full",
+        "name": "Полная занятость"
+      },
+      "adv_response_url": null,
+      "is_adv_vacancy": false,
+      "adv_context": null
+    }
+  ],
+  "found": 6,
+  "pages": 3,
+  "page": 0,
+  "per_page": 2,
+  "clusters": null,
+  "arguments": null,
+  "fixes": null,
+  "suggests": null,
+  "alternate_url": "https://hh.ru/search/vacancy?enable_snippets=true&experience=noExperience&items_on_page=2&schedule=remote&text=golang"
+}

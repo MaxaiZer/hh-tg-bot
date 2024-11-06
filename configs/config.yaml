@@ -1,0 +1,10 @@
+bot:
+  ai_key: "test_value"
+  token: "test_value"
+  hh_max_requests_per_second: 1
+  ai_max_requests_per_second: 0.20
+logger:
+  log_level: INFO
+  output_file: ./logs/log.txt
+db:
+  connection_string: "mydatabase.db"

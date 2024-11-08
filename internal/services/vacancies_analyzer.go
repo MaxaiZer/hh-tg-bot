@@ -133,7 +133,7 @@ func (v *VacanciesAnalyzer) runAnalysisForUserSearch(wg *sync.WaitGroup, search 
 
 func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, search entities.JobSearch, dateFrom time.Time) {
 
-	var pageSize, analyzedTotal = 20, 0
+	var pageSize, fetchedTotal = 20, 0
 
 	schedules, err := tryMapArray(search.SchedulesAsArray(),
 		func(s entities.Schedule) (hh.Schedule, error) { return hh.ScheduleFrom(s) })
@@ -166,19 +166,24 @@ func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, searc
 		}
 		if err = params.Validate(); err != nil {
 			log.Errorf("failed to validate search parameters: %v", err)
+			return
 		}
 
 		previews, err := v.hhClient.GetVacancies(params)
-		if err != nil {
+		if err == nil {
+			fetchedTotal += len(previews)
+		} else {
 			log.WithField(logger.ErrorTypeField, logger.ErrorTypeHhApi).Errorf("failed to get vacancies previews: %v", err)
+			continue
 		}
+
 		if len(previews) == 0 {
 			break
 		}
 
-		v.analyzeVacanciesByPreviews(ctx, previews, search, &analyzedTotal)
+		v.analyzeVacanciesByPreviews(ctx, previews, search)
 
-		if pageNum == 0 {
+		if vacancyLatestPublicationTime == nil {
 			vacancyLatestPublicationTime = &previews[0]
 		}
 	}
@@ -190,11 +195,11 @@ func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, searc
 		}
 	}
 
-	log.Infof("handled %v vacancies for search with id %v", analyzedTotal, search.ID)
+	log.Infof("fetched total %v vacancies for search with id %v", fetchedTotal, search.ID)
 }
 
 func (v *VacanciesAnalyzer) analyzeVacanciesByPreviews(ctx context.Context, previews []hh.VacancyPreview,
-	search entities.JobSearch, analyzedTotal *int) {
+	search entities.JobSearch) {
 
 	for _, vacancyPreview := range previews {
 
@@ -212,7 +217,6 @@ func (v *VacanciesAnalyzer) analyzeVacanciesByPreviews(ctx context.Context, prev
 			log.WithField(logger.ErrorTypeField, logger.ErrorTypeHhApi).Errorf("failed to get vacancy: %v", err)
 		} else if v.analyzeVacancy(ctx, vacancy, search) == nil {
 			metrics.HandledVacanciesCounter.Inc()
-			*analyzedTotal++
 		}
 	}
 }
@@ -262,15 +266,17 @@ func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy hh.Va
 		return err
 	}
 
-	if !wasSent {
-		if err = v.vacancies.RecordAsSentToUser(ctx, search.UserID, vacancy.ID); err != nil {
-			log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
-				Errorf("failed to record vacancy as send to user: %v", err)
-		}
-		event := events.VacancyFound{Search: search, Name: vacancy.Name, Url: vacancy.Url}
-		v.bus.Publish(events.VacancyFoundTopic, event)
+	if wasSent {
+		return nil
 	}
 
+	if err = v.vacancies.RecordAsSentToUser(ctx, search.UserID, vacancy.ID); err != nil {
+		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
+			Errorf("failed to record vacancy as send to user: %v", err)
+		return err
+	}
+	event := events.VacancyFound{Search: search, Name: vacancy.Name, Url: vacancy.Url}
+	v.bus.Publish(events.VacancyFoundTopic, event)
 	return nil
 }
 

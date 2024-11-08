@@ -8,6 +8,7 @@ import (
 	"github.com/maxaizer/hh-parser/internal/clients/hh"
 	"github.com/maxaizer/hh-parser/internal/entities"
 	"github.com/maxaizer/hh-parser/internal/events"
+	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
 )
@@ -82,6 +83,8 @@ func (m *mockRegionRepo) GetIdByName(ctx context.Context, name string) (string, 
 
 func Test_AddSearchCmd_WhenValidData_ShouldBeSuccessful(t *testing.T) {
 
+	assert := assert.New(t)
+
 	region := entities.NewRegion("0", "Москва")
 	mockSearches := &mockSearchRepo{}
 	mockRegions := &mockRegionRepo{Regions: []entities.Region{region}}
@@ -107,35 +110,18 @@ func Test_AddSearchCmd_WhenValidData_ShouldBeSuccessful(t *testing.T) {
 	cmd.OnUserInput(wish)
 	cmd.OnUserInput(strconv.Itoa(initialSearchPeriod))
 
-	if !finished {
-		t.Errorf("AddSearchCmd should have finished")
-	}
-	if len(mockSearches.Searches) == 0 {
-		t.Errorf("AddSearchCmd should add search")
-	}
-
-	if mockSearches.Searches[0].SearchText != keywords {
-		t.Errorf("wrong search text")
-	}
-
-	if mockSearches.Searches[0].RegionID != region.ID {
-		t.Errorf("wrong region id")
-	}
-
-	if mockSearches.Searches[0].Experience != entities.NoExperience {
-		t.Errorf("wrong experience")
-	}
-
-	if mockSearches.Searches[0].UserWish != wish {
-		t.Errorf("wrong user wish")
-	}
-
-	if mockSearches.Searches[0].InitialSearchPeriod != initialSearchPeriod {
-		t.Errorf("wrong InitialSearchPeriod")
-	}
+	assert.True(finished)
+	assert.True(len(mockSearches.Searches) == 1)
+	assert.Equal(mockSearches.Searches[0].SearchText, keywords)
+	assert.Equal(mockSearches.Searches[0].RegionID, region.ID)
+	assert.Equal(mockSearches.Searches[0].Experience, entities.NoExperience)
+	assert.Equal(mockSearches.Searches[0].UserWish, wish)
+	assert.Equal(mockSearches.Searches[0].InitialSearchPeriod, initialSearchPeriod)
 }
 
 func Test_RemoveSearchCmd_WhenValidData_ShouldBeSuccessful(t *testing.T) {
+
+	assert := assert.New(t)
 
 	search := entities.JobSearch{
 		ID:     0,
@@ -155,13 +141,7 @@ func Test_RemoveSearchCmd_WhenValidData_ShouldBeSuccessful(t *testing.T) {
 	cmd.Run()
 	cmd.OnUserInput("1")
 
-	if !finished {
-		t.Errorf("RemoveSearchCmd should have finished")
-	}
-	if len(mockSearches.Searches) == 1 {
-		t.Errorf("RemoveSearchCmd should remove search")
-	}
-	if !published {
-		t.Errorf("RemoveSearchCmd should publish event")
-	}
+	assert.True(finished)
+	assert.Empty(mockSearches.Searches)
+	assert.True(published)
 }

@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"github.com/asaskevich/EventBus"
 	"github.com/maxaizer/hh-parser/internal/clients/hh"
@@ -223,7 +225,8 @@ func (v *VacanciesAnalyzer) analyzeVacanciesByPreviews(ctx context.Context, prev
 
 func (v *VacanciesAnalyzer) analyzeVacancy(ctx context.Context, vacancy hh.Vacancy, search entities.JobSearch) error {
 
-	cacheID := strconv.Itoa(search.ID) + vacancy.Description
+	descriptionHash := sha256.Sum256([]byte(vacancy.Description))
+	cacheID := strconv.Itoa(search.ID) + hex.EncodeToString(descriptionHash[:])
 	if _, found := v.cache.Get(cacheID); found {
 		return nil
 	}

@@ -12,31 +12,49 @@ import (
 	"time"
 )
 
+type Model string
+
+const (
+	//Model15Flash is fastest multimodal model with great performance for diverse, repetitive tasks
+	Model15Flash Model = "gemini-1.5-flash"
+	//Model15Flash8b is the smallest model for lower intelligence use cases
+	Model15Flash8b Model = "gemini-1.5-flash-8b"
+	//Model15Pro is next-generation model with a breakthrough 2 million context window
+	Model15Pro Model = "gemini-1.5-pro"
+	//Model10Pro is first-generation model offering only text and image reasoning
+	Model10Pro Model = "gemini-1.0-pro"
+)
+
 type Client struct {
-	client      *genai.Client
-	model       *genai.GenerativeModel
-	rateLimiter *rate.Limiter
+	client            *genai.Client
+	model             *genai.GenerativeModel
+	minuteRateLimiter *rate.Limiter
+	dayRateLimiter    *rate.Limiter
 }
 
-func NewClient(ctx context.Context, apiKey string) (*Client, error) {
+func NewClient(ctx context.Context, apiKey string, model Model) (*Client, error) {
 
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, err
 	}
 
-	model := client.GenerativeModel("gemini-1.5-flash")
+	genModel := client.GenerativeModel(string(model))
 
 	service := Client{
 		client: client,
-		model:  model,
+		model:  genModel,
 	}
 
 	return &service, nil
 }
 
-func (c *Client) SetRateLimit(maxRequestsPerSecond float32) {
-	c.rateLimiter = rate.NewLimiter(rate.Limit(maxRequestsPerSecond), 1)
+func (c *Client) SetMinuteRateLimit(maxRequestsPerMinute float32) {
+	c.minuteRateLimiter = rate.NewLimiter(rate.Limit(maxRequestsPerMinute/60), 1)
+}
+
+func (c *Client) SetDayRateLimit(maxRequestsPerDay float32) {
+	c.dayRateLimiter = rate.NewLimiter(rate.Limit(maxRequestsPerDay/86400), int(maxRequestsPerDay))
 }
 
 func (c *Client) GenerateResponse(ctx context.Context, text string) (string, error) {
@@ -57,10 +75,13 @@ func (c *Client) GenerateResponse(ctx context.Context, text string) (string, err
 
 func (c *Client) waitAndGenerateResponse(ctx context.Context, text string) (string, error) {
 
-	if c.rateLimiter != nil {
-		err := c.rateLimiter.Wait(ctx)
-		if err != nil {
-			return "", err
+	limiters := []*rate.Limiter{c.minuteRateLimiter, c.dayRateLimiter}
+	for _, limiter := range limiters {
+		if limiter != nil {
+			err := limiter.Wait(ctx)
+			if err != nil {
+				return "", err
+			}
 		}
 	}
 

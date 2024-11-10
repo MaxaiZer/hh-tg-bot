@@ -35,11 +35,12 @@ func main() {
 	regions := repositories.NewCachedRegions(repositories.NewRegionsRepository(dbContext.DB))
 	vacancies := repositories.NewVacanciesRepository(dbContext.DB)
 
-	aiClient, err := gemini.NewClient(context.Background(), cfg.Bot.AIKey)
+	aiClient, err := gemini.NewClient(context.Background(), cfg.Bot.AIKey, gemini.Model15Flash)
 	if err != nil {
 		log.Fatalf("can't create AI service: %v", err)
 	}
-	aiClient.SetRateLimit(cfg.Bot.AiMaxRequestsPerSecond)
+	aiClient.SetMinuteRateLimit(cfg.Bot.AiMaxRequestsPerMinute)
+	aiClient.SetDayRateLimit(cfg.Bot.AiMaxRequestsPerDay)
 
 	bus := EventBus.New()
 

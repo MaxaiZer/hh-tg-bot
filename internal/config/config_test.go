@@ -15,7 +15,7 @@ func Test_Config_EnvironmentOverrideWorksCorrect(t *testing.T) {
 			Token:                  "overrideToken",
 			AIKey:                  "overrideKey",
 			HhMaxRequestsPerSecond: 99,
-			AiMaxRequestsPerSecond: 88,
+			AiMaxRequestsPerMinute: 88,
 		},
 		DB: DBConfig{
 			ConnectionString: "newConnectionString",

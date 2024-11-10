@@ -2,7 +2,8 @@ bot:
   ai_key: "test_value"
   token: "test_value"
   hh_max_requests_per_second: 1
-  ai_max_requests_per_second: 0.20
+  ai_max_requests_per_minute: 15
+  ai_max_requests_per_day: 1500
 logger:
   log_level: INFO
   output_file: ./logs/log.txt

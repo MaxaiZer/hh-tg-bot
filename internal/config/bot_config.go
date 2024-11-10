@@ -10,7 +10,8 @@ type BotConfig struct {
 	Token                  string  `mapstructure:"token"`
 	AIKey                  string  `mapstructure:"ai_key"`
 	HhMaxRequestsPerSecond float32 `mapstructure:"hh_max_requests_per_second"`
-	AiMaxRequestsPerSecond float32 `mapstructure:"ai_max_requests_per_second"`
+	AiMaxRequestsPerMinute float32 `mapstructure:"ai_max_requests_per_minute"`
+	AiMaxRequestsPerDay    float32 `mapstructure:"ai_max_requests_per_day"`
 }
 
 func (config BotConfig) validate() error {
@@ -22,7 +23,7 @@ func (config BotConfig) validate() error {
 	}
 
 	if config.AIKey == "" {
-		missingFields = append(missingFields, "openapi_key")
+		missingFields = append(missingFields, "ai_key")
 	}
 
 	if len(missingFields) > 0 {

@@ -52,7 +52,12 @@ func NewVacanciesAnalyzer(bus EventBus.Bus, aiService *AIService, hhClient *hh.C
 		analysisInterval: 3 * time.Hour,
 		cache:            gocache.New(10*time.Minute, 20*time.Minute),
 	}
-	err := bus.Subscribe(events.SearchDeletedTopic, v.onSearchDeletedEvent)
+
+	err := bus.Subscribe(events.SearchDeletedTopic, v.onSearchDeletedOrEditedEvent)
+	if err != nil {
+		return nil, err
+	}
+	err = bus.Subscribe(events.SearchEditedTopic, v.onSearchDeletedOrEditedEvent)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +288,7 @@ func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy hh.Va
 	return nil
 }
 
-func (v *VacanciesAnalyzer) onSearchDeletedEvent(event events.SearchDeleted) {
+func (v *VacanciesAnalyzer) onSearchDeletedOrEditedEvent(event events.SearchDeleted) {
 	if cancel, ok := v.searchContexts.Load(event.SearchID); ok {
 		cancel.(context.CancelFunc)()
 		v.searchContexts.Delete(event.SearchID)

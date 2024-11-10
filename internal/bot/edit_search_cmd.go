@@ -2,8 +2,10 @@ package bot
 
 import (
 	"context"
+	"github.com/asaskevich/EventBus"
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/events"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	log "github.com/sirupsen/logrus"
 	"strconv"
@@ -20,6 +22,7 @@ const (
 type editSearchCommand struct {
 	api                  apiInterface
 	chatID               int64
+	bus                  EventBus.Bus
 	searches             searchRepository
 	curInput             inputHandler
 	curStep              int
@@ -29,9 +32,9 @@ type editSearchCommand struct {
 	finalMessageKeyboard *botApi.ReplyKeyboardMarkup
 }
 
-func newEditSearchCommand(api apiInterface, chatID int64, searchRepo searchRepository) *editSearchCommand {
+func newEditSearchCommand(api apiInterface, chatID int64, bus EventBus.Bus, searchRepo searchRepository) *editSearchCommand {
 
-	cmd := editSearchCommand{api: api, chatID: chatID, searches: searchRepo, curStep: inputSearchStep}
+	cmd := editSearchCommand{api: api, chatID: chatID, bus: bus, searches: searchRepo, curStep: inputSearchStep}
 	input := newSearchInput(chatID, searchRepo, func(s *entities.JobSearch) {
 		cmd.search = s
 		cmd.curStep = inputFieldToEditStep
@@ -100,6 +103,7 @@ func (c *editSearchCommand) editSearch() {
 		return
 	}
 
+	c.bus.Publish(events.SearchEditedTopic, events.SearchEdited{SearchID: c.search.ID})
 	_, _ = sendWithLogError(c.api, botApi.NewMessage(c.chatID, "Поиск успешно обновлён!"))
 }
 

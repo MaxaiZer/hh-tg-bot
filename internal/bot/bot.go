@@ -130,7 +130,7 @@ func (b *Bot) handleCommand(user *botApi.User, chat *botApi.Chat, command string
 	case removeSearchCommandName:
 		ctx.RunCommand(newRemoveSearchCommand(b.api, chat.ID, b.bus, b.searches))
 	case editSearchCommandName:
-		ctx.RunCommand(newEditSearchCommand(b.api, chat.ID, b.searches))
+		ctx.RunCommand(newEditSearchCommand(b.api, chat.ID, b.bus, b.searches))
 	case backToMenuCommandName:
 		messageResponse := botApi.NewMessage(chat.ID, "Вы были успешно перенесены в главное меню")
 		messageResponse.ReplyMarkup = defaultReplyKeyboard()

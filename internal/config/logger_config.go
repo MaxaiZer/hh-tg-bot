@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"github.com/spf13/viper"
 )
@@ -31,7 +32,7 @@ func (config LoggerConfig) validate() error {
 	}
 
 	if len(errs) > 0 {
-		return createMultiError(errs)
+		return fmt.Errorf("multiple errors occurred: %w", errors.Join(errs...))
 	}
 
 	return nil

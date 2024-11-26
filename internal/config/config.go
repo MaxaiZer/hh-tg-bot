@@ -1,11 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"os"
-	"strings"
 )
 
 type Config struct {
@@ -78,7 +78,7 @@ func bindEnvironmentVariables() error {
 	}
 
 	if len(errs) > 0 {
-		return createMultiError(errs)
+		return fmt.Errorf("multiple errors occurred: %w", errors.Join(errs...))
 	}
 
 	return nil
@@ -100,21 +100,8 @@ func (config Config) validate() error {
 	}
 
 	if len(errs) > 0 {
-		return createMultiError(errs)
+		return fmt.Errorf("multiple errors occurred: %w", errors.Join(errs...))
 	}
 
 	return nil
-}
-
-func createMultiError(errs []error) error {
-
-	if len(errs) == 0 {
-		return nil
-	}
-
-	errorMessages := make([]string, len(errs))
-	for i, err := range errs {
-		errorMessages[i] = err.Error()
-	}
-	return fmt.Errorf("multiple errors occurred: %s", strings.Join(errorMessages, "; "))
 }

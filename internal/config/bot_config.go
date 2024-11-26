@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"github.com/spf13/viper"
 	"strings"
@@ -44,7 +45,7 @@ func (config BotConfig) bindEnvironmentVariables() error {
 	}
 
 	if len(errs) > 0 {
-		return createMultiError(errs)
+		return fmt.Errorf("multiple errors occurred: %w", errors.Join(errs...))
 	}
 
 	return nil

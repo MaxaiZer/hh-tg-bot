@@ -12,6 +12,7 @@ import (
 	"github.com/maxaizer/hh-parser/internal/logger"
 	"github.com/maxaizer/hh-parser/internal/metrics"
 	gocache "github.com/patrickmn/go-cache"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"strconv"
 	"sync"
@@ -147,8 +148,14 @@ func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, searc
 
 	var pageSize, fetchedTotal = 20, 0
 
-	schedules, err := tryMapArray(search.SchedulesAsArray(),
-		func(s entities.Schedule) (hh.Schedule, error) { return hh.ScheduleFrom(s) })
+	var err error
+	schedules := lo.Map(search.SchedulesAsArray(), func(s entities.Schedule, _ int) hh.Schedule {
+		schedule, _err := hh.ScheduleFrom(s)
+		if _err != nil {
+			err = _err
+		}
+		return schedule
+	})
 
 	if err != nil {
 		log.Errorf("error map schedules")
@@ -298,15 +305,4 @@ func (v *VacanciesAnalyzer) cancelSearchAnalyze(searchID int) {
 		cancel.(context.CancelFunc)()
 		v.searchContexts.Delete(searchID)
 	}
-}
-
-func tryMapArray[T any, U any](input []T, fn func(T) (U, error)) ([]U, error) {
-	result := make([]U, len(input))
-	for i, v := range input {
-		var err error
-		if result[i], err = fn(v); err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
 }

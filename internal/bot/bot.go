@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/asaskevich/EventBus"
@@ -10,11 +11,13 @@ import (
 	"github.com/maxaizer/hh-parser/internal/events"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	log "github.com/sirupsen/logrus"
+	"os"
 	"slices"
 )
 
 type searchRepository interface {
 	GetByUser(ctx context.Context, userID int64) ([]entities.JobSearch, error)
+	GetByID(ctx context.Context, ID int64) (*entities.JobSearch, error)
 	Add(ctx context.Context, search entities.JobSearch) error
 	Update(ctx context.Context, search entities.JobSearch) error
 	Remove(ctx context.Context, ID int) error
@@ -71,7 +74,13 @@ func NewBot(token string, bus EventBus.Bus, searchRepo searchRepository, regionR
 	return createdBot, nil
 }
 
-func (b *Bot) Start() {
+func (b *Bot) Run() {
+
+	err := b.loadUserContexts()
+	if err != nil {
+		log.Errorf("Error loading user contexts: %v", err)
+	}
+
 	updateConfig := botApi.NewUpdate(0)
 	updateConfig.Timeout = 60
 
@@ -91,9 +100,14 @@ func (b *Bot) Start() {
 	}
 }
 
-func (b *Bot) handleMessage(message *botApi.Message) {
+func (b *Bot) Stop() {
+	err := b.saveUserContexts()
+	if err != nil {
+		log.Errorf("Error saving user contexts: %v", err)
+	}
+}
 
-	log.Infof("message from %s: %s", message.From.UserName, message.Text)
+func (b *Bot) handleMessage(message *botApi.Message) {
 
 	cmd := message.Command()
 	if cmd == "" && slices.Contains(globalCommands, message.Text) {
@@ -114,6 +128,7 @@ func (b *Bot) handleMessage(message *botApi.Message) {
 func (b *Bot) handleCommand(user *botApi.User, chat *botApi.Chat, command string, args string) {
 
 	var response botApi.Chattable
+	var err error
 
 	if b.userContexts[user.ID] == nil {
 		b.userContexts[user.ID] = newUserContext(chat.ID)
@@ -125,18 +140,30 @@ func (b *Bot) handleCommand(user *botApi.User, chat *botApi.Chat, command string
 		messageResponse := botApi.NewMessage(chat.ID, "Саламчик попаламчик, родной!")
 		messageResponse.ReplyMarkup = defaultReplyKeyboard()
 		response = messageResponse
-	case addSearchCommandName:
-		ctx.RunCommand(newAddSearchCommand(b.api, chat.ID, b.searches, b.regions))
-	case removeSearchCommandName:
-		ctx.RunCommand(newRemoveSearchCommand(b.api, chat.ID, b.bus, b.searches))
-	case editSearchCommandName:
-		ctx.RunCommand(newEditSearchCommand(b.api, chat.ID, b.bus, b.searches))
+		delete(b.userContexts, user.ID)
+	case addSearchCommandName, removeSearchCommandName, editSearchCommandName:
+		cmd, cmdErr := b.createCommand(command, user.ID)
+		if cmdErr != nil {
+			err = fmt.Errorf("couldn't create %s: %w", cmd, cmdErr)
+		} else {
+			ctx.RunCommand(cmd, command)
+		}
 	case backToMenuCommandName:
 		messageResponse := botApi.NewMessage(chat.ID, "Вы были успешно перенесены в главное меню")
 		messageResponse.ReplyMarkup = defaultReplyKeyboard()
 		response = messageResponse
+		delete(b.userContexts, user.ID)
 	default:
 		response = botApi.NewMessage(chat.ID, "Неизвестная команда!")
+	}
+
+	if err != nil {
+		if errors.Is(err, errorNoUserSearches) {
+			response = botApi.NewMessage(chat.ID, "У вас нет ни одного автопоиска")
+		} else {
+			response = botApi.NewMessage(chat.ID, "Внутренняя ошибка!")
+			log.Error(err)
+		}
 	}
 
 	if response == nil {
@@ -144,6 +171,20 @@ func (b *Bot) handleCommand(user *botApi.User, chat *botApi.Chat, command string
 	}
 
 	_, _ = sendWithLogError(b.api, response)
+}
+
+func (b *Bot) createCommand(name string, chatID int64) (command, error) {
+
+	switch name {
+	case addSearchCommandName:
+		return newAddSearchCommand(b.api, chatID, b.searches, b.regions), nil
+	case removeSearchCommandName:
+		return newRemoveSearchCommand(b.api, chatID, b.bus, b.searches)
+	case editSearchCommandName:
+		return newEditSearchCommand(b.api, chatID, b.bus, b.searches)
+	default:
+		return nil, fmt.Errorf("unknown command: %v", name)
+	}
 }
 
 func (b *Bot) handleInput(user *botApi.User, chat *botApi.Chat, input string) {
@@ -177,6 +218,60 @@ func (b *Bot) onVacancyFound(event events.VacancyFound) {
 	if _, err := b.api.Send(msg); err != nil {
 		log.WithField(logger.ErrorTypeField, logger.ErrorTypeTgApi).Errorf("error occured while sending message: %v", err)
 	}
+}
+
+func (b *Bot) saveUserContexts() error {
+	data, err := json.Marshal(b.userContexts)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile("user_contexts.json", data, 0644)
+}
+
+func (b *Bot) loadUserContexts() error {
+	data, err := os.ReadFile("user_contexts.json")
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(data, &b.userContexts); err != nil {
+		return err
+	}
+
+	var errs []error
+	for i, ctx := range b.userContexts {
+
+		if ctx.curCommandName == "" {
+			continue
+		}
+
+		cmd, err := b.createCommand(ctx.curCommandName, ctx.chatID)
+		if err != nil {
+			errs = append(errs, err)
+			delete(b.userContexts, i)
+			continue
+		}
+
+		saveableCmd, ok := cmd.(saveable)
+		if !ok {
+			ctx.ResumeCommandAfterBotRestart(cmd)
+			continue
+		}
+
+		err = saveableCmd.LoadState(ctx.curCommandState)
+		if err != nil {
+			errs = append(errs, err)
+			delete(b.userContexts, i)
+			continue
+		}
+
+		ctx.ResumeCommandAfterBotRestart(cmd)
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 func defaultReplyKeyboard() botApi.ReplyKeyboardMarkup {

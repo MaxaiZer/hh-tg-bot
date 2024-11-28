@@ -6,9 +6,12 @@ import (
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/maxaizer/hh-parser/internal/entities"
 	"github.com/maxaizer/hh-parser/internal/logger"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"strconv"
 )
+
+var errorNoUserSearches = errors.New("user has no searches")
 
 type searchInput struct {
 	chatID       int64
@@ -17,25 +20,19 @@ type searchInput struct {
 	onFinish     func(search *entities.JobSearch)
 }
 
-func newSearchInput(chatID int64, searchRepo searchRepository, onFinish func(search *entities.JobSearch)) *searchInput {
-	return &searchInput{chatID: chatID, searches: searchRepo, onFinish: onFinish}
+func newSearchInput(chatID int64, searchRepo searchRepository, onFinish func(search *entities.JobSearch)) (*searchInput, error) {
+	userSearches, err := searchRepo.GetByUser(context.Background(), chatID)
+	if err != nil {
+		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).Error(err)
+		return nil, err
+	}
+	if len(userSearches) == 0 {
+		return nil, errorNoUserSearches
+	}
+	return &searchInput{chatID: chatID, searches: searchRepo, userSearches: userSearches, onFinish: onFinish}, nil
 }
 
 func (s *searchInput) InitMessage() botApi.Chattable {
-
-	seaches, err := s.searches.GetByUser(context.Background(), s.chatID)
-	if err != nil {
-		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).Error(err)
-		s.onFinish(nil)
-		return botApi.NewMessage(s.chatID, "Внутренняя ошибка!")
-	}
-
-	if len(seaches) == 0 {
-		s.onFinish(nil)
-		return botApi.NewMessage(s.chatID, "У вас нет ни одного автопоиска.")
-	}
-
-	s.userSearches = seaches
 
 	text := "Введите номер поиска:\n"
 	text += s.searchesToText(s.userSearches)

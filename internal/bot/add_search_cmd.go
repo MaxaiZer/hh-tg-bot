@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"encoding/json"
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/maxaizer/hh-parser/internal/entities"
 	"github.com/maxaizer/hh-parser/internal/logger"
@@ -71,6 +72,60 @@ func (c *addSearchCommand) WithKeyboardOnFinalMessage(keyboard botApi.ReplyKeybo
 	c.finalMessageKeyboard = &keyboard
 }
 
+func (c *addSearchCommand) SaveState() ([]byte, error) {
+
+	type Alias addSearchCommand
+	return json.Marshal(&struct {
+		CurHandlerIndex     int
+		SearchText          string
+		Experience          entities.Experience
+		RegionID            string
+		Schedules           []entities.Schedule
+		Wish                string
+		InitialSearchPeriod int
+		*Alias
+	}{
+		CurHandlerIndex:     c.curHandlerIndex,
+		SearchText:          c.searchText,
+		Experience:          c.experience,
+		RegionID:            c.regionID,
+		Schedules:           c.schedules,
+		Wish:                c.wish,
+		InitialSearchPeriod: c.initialSearchPeriod,
+		Alias:               (*Alias)(c),
+	})
+}
+
+func (c *addSearchCommand) LoadState(data []byte) error {
+
+	type Alias addSearchCommand
+	aux := &struct {
+		CurHandlerIndex     int
+		SearchText          string
+		Experience          entities.Experience
+		RegionID            string
+		Schedules           []entities.Schedule
+		Wish                string
+		InitialSearchPeriod int
+		*Alias
+	}{
+		Alias: (*Alias)(c),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	c.curHandlerIndex = aux.CurHandlerIndex
+	c.searchText = aux.SearchText
+	c.experience = aux.Experience
+	c.regionID = aux.RegionID
+	c.schedules = aux.Schedules
+	c.wish = aux.Wish
+	c.initialSearchPeriod = aux.InitialSearchPeriod
+	return nil
+}
+
 func (c *addSearchCommand) Run() {
 	_, _ = sendWithLogError(c.api, c.inputHandlers[0].InitMessage())
 }
@@ -129,7 +184,8 @@ func newWishInput(chatID int64, onFinish func(input string)) *textInput {
 }
 
 func newInitialSearchPeriodInput(chatID int64, onFinish func(input string)) *textInput {
-	input := newTextInput(chatID, "Введите начальный период поиска в днях от 0 до 5", onFinish)
+	input := newTextInput(chatID, "Укажите, вакансии за сколько последних дней включить в поиск (от 0 до 5)",
+		onFinish)
 	input.AddValidation(validation{
 		function: func(input string) bool {
 			digit, err := strconv.Atoi(input)

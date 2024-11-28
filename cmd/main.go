@@ -12,9 +12,14 @@ import (
 	"github.com/maxaizer/hh-parser/internal/repositories"
 	"github.com/maxaizer/hh-parser/internal/services"
 	log "github.com/sirupsen/logrus"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	cfg := config.Get()
 
@@ -31,11 +36,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("can't migrate db context: %v", err)
 	}
+
 	searches := repositories.NewSearchRepository(dbContext.DB)
 	regions := repositories.NewCachedRegions(repositories.NewRegionsRepository(dbContext.DB))
 	vacancies := repositories.NewVacanciesRepository(dbContext.DB)
 
-	aiClient, err := gemini.NewClient(context.Background(), cfg.Bot.AIKey, gemini.Model15Flash)
+	aiClient, err := gemini.NewClient(ctx, cfg.Bot.AIKey, gemini.Model15Flash)
 	if err != nil {
 		log.Fatalf("can't create AI service: %v", err)
 	}
@@ -48,7 +54,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("can't create bot: %v", err)
 	}
-	go tgbot.Start()
+	go tgbot.Run()
 
 	hhClient := hh.NewClient()
 	hhClient.SetRateLimit(cfg.Bot.HhMaxRequestsPerSecond)
@@ -59,12 +65,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("can't create clearer: %v", err)
 	}
+	defer cleaner.StopCron()
 
 	analyzer, err := services.NewVacanciesAnalyzer(bus, aiService, hhClient, searches, vacancies)
 	if err != nil {
 		log.Fatalf("can't create analyzer: %v", err)
 	}
-	analyzer.Run()
+	go analyzer.Run()
 
-	defer cleaner.StopCron()
+	<-ctx.Done()
+
+	log.Info("Shutting down services...")
+	tgbot.Stop()
+	log.Info("Services stopped.")
 }

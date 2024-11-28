@@ -18,21 +18,24 @@ type removeSearchCommand struct {
 	bus                  EventBus.Bus
 	searches             searchRepository
 	input                inputHandler
-	search               *entities.JobSearch
+	searchID             int
 	searchInputFinished  bool
 	finishCallback       func()
 	finalMessageKeyboard *botApi.ReplyKeyboardMarkup
 }
 
-func newRemoveSearchCommand(api apiInterface, chatID int64, bus EventBus.Bus, searchRepo searchRepository) *removeSearchCommand {
+func newRemoveSearchCommand(api apiInterface, chatID int64, bus EventBus.Bus, searchRepo searchRepository) (*removeSearchCommand, error) {
 
 	cmd := removeSearchCommand{api: api, chatID: chatID, bus: bus, searches: searchRepo}
-	input := newSearchInput(chatID, searchRepo, func(s *entities.JobSearch) {
-		cmd.search = s
+	input, err := newSearchInput(chatID, searchRepo, func(s *entities.JobSearch) {
+		cmd.searchID = s.ID
 		cmd.searchInputFinished = true
 	})
+	if err != nil {
+		return nil, err
+	}
 	cmd.input = input
-	return &cmd
+	return &cmd, nil
 }
 
 func (c *removeSearchCommand) WithFinishCallback(callback func()) {
@@ -56,9 +59,7 @@ func (c *removeSearchCommand) OnUserInput(input string) {
 		return
 	}
 
-	if c.search != nil {
-		c.removeSearch(c.search.ID)
-	}
+	c.removeSearch(c.searchID)
 
 	if c.finishCallback != nil {
 		c.finishCallback()

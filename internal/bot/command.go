@@ -17,6 +17,11 @@ type command interface {
 	OnUserInput(input string)
 }
 
+type saveable interface {
+	SaveState() ([]byte, error)
+	LoadState(data []byte) error
+}
+
 func sendWithLogError(api apiInterface, chattable tgbotapi.Chattable) (tgbotapi.Message, error) {
 	msg, err := api.Send(chattable)
 	if err != nil {

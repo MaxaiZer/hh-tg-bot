@@ -28,6 +28,15 @@ func (repo *Searches) GetByUser(ctx context.Context, userID int64) ([]entities.J
 	return jobSearches, nil
 }
 
+func (repo *Searches) GetByID(ctx context.Context, ID int64) (*entities.JobSearch, error) {
+
+	var jobSearch entities.JobSearch
+	if err := repo.db.WithContext(ctx).Find(&jobSearch, "id = ?", ID).Error; err != nil {
+		return nil, err
+	}
+	return &jobSearch, nil
+}
+
 func (repo *Searches) GetCountByUser(ctx context.Context, userID int64) (int64, error) {
 
 	var count int64

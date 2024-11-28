@@ -2,6 +2,8 @@ package bot
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"github.com/asaskevich/EventBus"
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/maxaizer/hh-parser/internal/entities"
@@ -16,7 +18,8 @@ const editSearchCommandName = "Изменить автопоиск"
 const (
 	inputSearchStep = iota
 	inputFieldToEditStep
-	inputFieldValueStep
+	inputKeywordsStep
+	inputWishStep
 )
 
 type editSearchCommand struct {
@@ -24,23 +27,47 @@ type editSearchCommand struct {
 	chatID               int64
 	bus                  EventBus.Bus
 	searches             searchRepository
-	curInput             inputHandler
-	curStep              int
+	inputHandlers        [4]inputHandler
+	curInputIdx          int
 	search               *entities.JobSearch
-	searchInputFinished  bool
 	finishCallback       func()
 	finalMessageKeyboard *botApi.ReplyKeyboardMarkup
 }
 
-func newEditSearchCommand(api apiInterface, chatID int64, bus EventBus.Bus, searchRepo searchRepository) *editSearchCommand {
+func newEditSearchCommand(api apiInterface, chatID int64, bus EventBus.Bus, searchRepo searchRepository) (*editSearchCommand, error) {
 
-	cmd := editSearchCommand{api: api, chatID: chatID, bus: bus, searches: searchRepo, curStep: inputSearchStep}
-	input := newSearchInput(chatID, searchRepo, func(s *entities.JobSearch) {
+	cmd := editSearchCommand{api: api, chatID: chatID, bus: bus, searches: searchRepo, curInputIdx: inputSearchStep}
+
+	var err error
+	cmd.inputHandlers[inputSearchStep], err = newSearchInput(chatID, searchRepo, func(s *entities.JobSearch) {
 		cmd.search = s
-		cmd.curStep = inputFieldToEditStep
+		cmd.curInputIdx = inputFieldToEditStep
 	})
-	cmd.curInput = input
-	return &cmd
+	cmd.inputHandlers[inputFieldToEditStep] = newInputHandlerChoose(cmd.chatID, func(input string) {
+		num, _ := strconv.Atoi(input)
+		switch num {
+		case 0:
+			cmd.curInputIdx = inputKeywordsStep
+		case 1:
+			cmd.curInputIdx = inputWishStep
+		default:
+			log.Errorf("editSearchCommand: wrong handler number: %d", num)
+			_, _ = sendWithLogError(cmd.api, botApi.NewMessage(cmd.chatID, "Внутренняя ошибка"))
+			cmd.finishCallback()
+		}
+	})
+	cmd.inputHandlers[inputKeywordsStep] = newKeywordsInput(cmd.chatID, func(input string) {
+		cmd.search.SearchText = input
+		cmd.editSearch()
+		cmd.curInputIdx = inputFieldToEditStep
+	})
+	cmd.inputHandlers[inputWishStep] = newWishInput(cmd.chatID, func(input string) {
+		cmd.search.UserWish = input
+		cmd.editSearch()
+		cmd.curInputIdx = inputFieldToEditStep
+	})
+
+	return &cmd, err
 }
 
 func (c *editSearchCommand) WithFinishCallback(callback func()) {
@@ -51,49 +78,71 @@ func (c *editSearchCommand) WithKeyboardOnFinalMessage(keyboard botApi.ReplyKeyb
 	c.finalMessageKeyboard = &keyboard
 }
 
+func (c *editSearchCommand) SaveState() ([]byte, error) {
+
+	searchIdToSave := 0
+	if c.search != nil {
+		searchIdToSave = c.search.ID
+	}
+
+	type Alias editSearchCommand
+	return json.Marshal(&struct {
+		SearchInputFinished bool
+		SearchID            int
+		CurInputIdx         int
+		*Alias
+	}{
+		SearchInputFinished: c.search != nil,
+		SearchID:            searchIdToSave,
+		CurInputIdx:         c.curInputIdx,
+	})
+}
+
+func (c *editSearchCommand) LoadState(data []byte) error {
+
+	type Alias editSearchCommand
+	aux := &struct {
+		SearchInputFinished bool
+		SearchID            int
+		CurInputIdx         int
+		*Alias
+	}{
+		Alias: (*Alias)(c),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	c.curInputIdx = aux.CurInputIdx
+	if !aux.SearchInputFinished {
+		return nil
+	}
+
+	search, err := c.searches.GetByID(context.Background(), int64(aux.SearchID))
+	if err != nil {
+		return fmt.Errorf("couldn't fetch user search: %w", err)
+	}
+
+	c.search = search
+	return nil
+}
+
 func (c *editSearchCommand) Run() {
-	_, _ = sendWithLogError(c.api, c.curInput.InitMessage())
+	_, _ = sendWithLogError(c.api, c.inputHandlers[c.curInputIdx].InitMessage())
 }
 
 func (c *editSearchCommand) OnUserInput(input string) {
 
-	previousStep := c.curStep
-	msg := c.curInput.HandleInput(input)
+	previousIdx := c.curInputIdx
+	msg := c.inputHandlers[c.curInputIdx].HandleInput(input)
 
-	if c.curStep == previousStep {
+	if c.curInputIdx == previousIdx {
 		_, _ = sendWithLogError(c.api, msg)
+		return
 	}
 
-	if c.curStep == inputFieldToEditStep {
-		c.curInput = newInputHandlerChoose(c.chatID, func(input string) {
-			c.createSearchEditHandler(input)
-			c.curStep = inputFieldValueStep
-		})
-		_, _ = sendWithLogError(c.api, c.curInput.InitMessage())
-	}
-
-	if c.curStep == inputFieldValueStep {
-		_, _ = sendWithLogError(c.api, c.curInput.InitMessage())
-	}
-}
-
-func (c *editSearchCommand) createSearchEditHandler(id string) {
-	switch id {
-	case "0":
-		c.curInput = newKeywordsInput(c.chatID, func(input string) {
-			c.search.SearchText = input
-			c.editSearch()
-			c.curStep = inputFieldToEditStep
-		})
-	case "1":
-		c.curInput = newWishInput(c.chatID, func(input string) {
-			c.search.UserWish = input
-			c.editSearch()
-			c.curStep = inputFieldToEditStep
-		})
-	default:
-		log.Errorf("editSearchCommand: wrong search edit handler id")
-	}
+	_, _ = sendWithLogError(c.api, c.inputHandlers[c.curInputIdx].InitMessage())
 }
 
 func (c *editSearchCommand) editSearch() {

@@ -16,30 +16,8 @@ import (
 	"syscall"
 )
 
-func main() {
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	cfg := config.Get()
-
-	logger.Setup(cfg.Logger)
-	defer logger.Cleanup()
-
-	metrics.StartMetricsServer()
-
-	dbContext, err := repositories.NewDbContext(cfg.DB.ConnectionString)
-	if err != nil {
-		log.Fatalf("can't create db context: %v", err)
-	}
-	err = dbContext.Migrate()
-	if err != nil {
-		log.Fatalf("can't migrate db context: %v", err)
-	}
-
-	searches := repositories.NewSearchRepository(dbContext.DB)
-	regions := repositories.NewCachedRegions(repositories.NewRegionsRepository(dbContext.DB))
-	vacancies := repositories.NewVacanciesRepository(dbContext.DB)
+func runAnalyzer(ctx context.Context, cfg *config.Config, vacancies *repositories.Vacancies,
+	searches *repositories.Searches, bus EventBus.Bus) {
 
 	aiClient, err := gemini.NewClient(ctx, cfg.Bot.AIKey, gemini.Model15Flash)
 	if err != nil {
@@ -47,14 +25,6 @@ func main() {
 	}
 	aiClient.SetMinuteRateLimit(cfg.Bot.AiMaxRequestsPerMinute)
 	aiClient.SetDayRateLimit(cfg.Bot.AiMaxRequestsPerDay)
-
-	bus := EventBus.New()
-
-	tgbot, err := bot.NewBot(cfg.Bot.Token, bus, searches, regions)
-	if err != nil {
-		log.Fatalf("can't create bot: %v", err)
-	}
-	go tgbot.Run()
 
 	hhClient := hh.NewClient()
 	hhClient.SetRateLimit(cfg.Bot.HhMaxRequestsPerSecond)
@@ -72,6 +42,44 @@ func main() {
 		log.Fatalf("can't create analyzer: %v", err)
 	}
 	go analyzer.Run()
+}
+
+func main() {
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	cfg := config.Get()
+
+	logger.Setup(cfg.Logger)
+	defer logger.Cleanup()
+
+	metrics.StartMetricsServer()
+
+	dbContext, err := repositories.NewDbContext(cfg.DB.ConnectionString)
+	if err != nil {
+		log.Fatalf("can't create db context: %v", err)
+	}
+	defer dbContext.Close()
+
+	err = dbContext.Migrate()
+	if err != nil {
+		log.Fatalf("can't migrate db context: %v", err)
+	}
+
+	searches := repositories.NewSearchRepository(dbContext.DB)
+	regions := repositories.NewCachedRegions(repositories.NewRegionsRepository(dbContext.DB))
+	vacancies := repositories.NewVacanciesRepository(dbContext.DB)
+	//ToDo: separate func to run bot
+	bus := EventBus.New()
+
+	tgbot, err := bot.NewBot(cfg.Bot.Token, bus, searches, regions)
+	if err != nil {
+		log.Fatalf("can't create bot: %v", err)
+	}
+	go tgbot.Run()
+
+	runAnalyzer(ctx, cfg, vacancies, searches, bus)
 
 	<-ctx.Done()
 

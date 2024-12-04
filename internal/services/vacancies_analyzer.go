@@ -265,6 +265,10 @@ func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, errCh
 
 		params, err := createHhSearchParams(&search, dateFrom, page, pageSize)
 		if err != nil {
+			if errors.Is(err, hh.ErrTooDeepPagination) {
+				log.Warningf("too deep pagination for search with id %d, page: %d, per page: %d", search.ID, page, pageSize)
+				break
+			}
 			log.Error(err)
 			return //to not update latest vacancy
 		}

@@ -3,10 +3,13 @@ package hh
 import (
 	"fmt"
 	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/pkg/errors"
 	"net/url"
 	"strconv"
 	"time"
 )
+
+var ErrTooDeepPagination = errors.New("too deep pagination")
 
 type Experience string
 
@@ -77,6 +80,12 @@ func (s SearchParameters) Validate() error {
 
 	if s.PerPage < 0 || s.PerPage > 100 {
 		return fmt.Errorf("per page must be between 0 and 100")
+	}
+
+	maxResults := 2000
+	maxPage := maxResults / s.PerPage
+	if s.Page >= maxPage {
+		return ErrTooDeepPagination
 	}
 
 	return nil

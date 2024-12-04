@@ -37,6 +37,10 @@ func (c *Client) SetRateLimit(maxRequestsPerSecond float32) {
 
 func (c *Client) GetVacancies(parameters SearchParameters) ([]VacancyPreview, error) {
 
+	if err := parameters.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
 	apiURL := "https://api.hh.ru/vacancies"
 	params := parameters.ToUrlParams()
 

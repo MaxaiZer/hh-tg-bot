@@ -40,6 +40,11 @@ func (c *DbContext) Migrate() error {
 		return fmt.Errorf("failed to migrate NotifiedVacancy entity: %w", err)
 	}
 
+	err = c.DB.AutoMigrate(entities.FailedVacancy{})
+	if err != nil {
+		return fmt.Errorf("failed to migrate FailedVacancy entity: %w", err)
+	}
+
 	var regionsCount int64
 	if err = c.DB.Model(entities.Region{}).Count(&regionsCount).Error; err != nil {
 		return fmt.Errorf("failed to count regions: %w", err)
@@ -67,4 +72,13 @@ func (c *DbContext) Migrate() error {
 	}
 
 	return nil
+}
+
+func (c *DbContext) Close() error {
+	db, err := c.DB.DB()
+	if err != nil {
+		return err
+	}
+
+	return db.Close()
 }

@@ -9,3 +9,12 @@ type NotifiedVacancy struct {
 	LastCheckedAt time.Time
 	CreatedAt     time.Time
 }
+
+type FailedVacancy struct {
+	SearchID  int    `gorm:"primaryKey"`
+	VacancyID string `gorm:"primaryKey"`
+	Error     string
+	Attempts  int `gorm:"default:1"`
+	CreatedAt time.Time
+	UpdatedAt *time.Time
+}

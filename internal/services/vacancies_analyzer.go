@@ -2,8 +2,6 @@ package services
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"github.com/asaskevich/EventBus"
 	"github.com/maxaizer/hh-parser/internal/clients/hh"
@@ -14,19 +12,33 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"strconv"
 	"sync"
 	"time"
 )
 
 type searchRepository interface {
-	Get(ctx context.Context, pageSize int, pageNum int) ([]entities.JobSearch, error)
+	Get(ctx context.Context, limit int, offset int) ([]entities.JobSearch, error)
+	GetByID(ctx context.Context, ID int64) (*entities.JobSearch, error)
 	UpdateLastCheckedVacancy(ctx context.Context, searchID int, vacancy hh.VacancyPreview) error
 }
 
 type vacancyRepository interface {
 	IsSentToUser(ctx context.Context, userID int64, vacancyID string) (bool, error)
 	RecordAsSentToUser(ctx context.Context, userID int64, vacancyID string) error
+	AddFailedToAnalyse(ctx context.Context, searchID int, vacancyID string, error string) error
+	RemoveFailedToAnalyse(ctx context.Context, maxAttempts int) (int64, error)
+	GetFailedToAnalyse(ctx context.Context) ([]entities.FailedVacancy, error)
+}
+
+type analysisRequest struct {
+	vacancyID string
+	search    *entities.JobSearch
+}
+
+type analysisError struct {
+	vacancyID string
+	searchID  int
+	error     error
 }
 
 type VacanciesAnalyzer struct {
@@ -35,7 +47,7 @@ type VacanciesAnalyzer struct {
 	vacancies        vacancyRepository
 	hhClient         *hh.Client
 	aiService        *AIService
-	cache            *gocache.Cache
+	cacheHelper      *cacheHelper
 	lastAnalysisTime time.Time
 	analysisInterval time.Duration
 	searchContexts   sync.Map
@@ -50,8 +62,8 @@ func NewVacanciesAnalyzer(bus EventBus.Bus, aiService *AIService, hhClient *hh.C
 		vacancies:        vacancyRepo,
 		hhClient:         hhClient,
 		aiService:        aiService,
+		cacheHelper:      newCacheHelper(hhClient, gocache.New(30*time.Minute, 1*time.Hour)),
 		analysisInterval: 3 * time.Hour,
-		cache:            gocache.New(10*time.Minute, 20*time.Minute),
 	}
 
 	err := bus.Subscribe(events.SearchDeletedTopic, func(event events.SearchDeleted) {
@@ -82,6 +94,10 @@ func (v *VacanciesAnalyzer) Run() {
 		metrics.AnalysisDuration.Observe(executionTime.Seconds())
 		log.Infof("analysis ended after %v", executionTime)
 
+		v.rerunAnalysisForFailedVacancies()
+		executionTime = time.Now().Sub(startTime.Add(executionTime))
+		log.Infof("analysis for failed vacancies ended after %v", executionTime)
+
 		var sleepTime time.Duration
 		if executionTime <= v.analysisInterval {
 			sleepTime = v.analysisInterval - executionTime
@@ -97,11 +113,26 @@ func (v *VacanciesAnalyzer) Run() {
 
 func (v *VacanciesAnalyzer) runAnalysis() {
 
+	errChan := make(chan analysisError, 10)
+	errHandler := newErrorHandler(v.vacancies)
+
+	go func() {
+		errHandler.Run(errChan)
+	}()
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("recovered from panic: %v", r)
+		}
+
+		close(errChan)
+		<-errHandler.Done
+	}()
+
 	var pageSize, analyzedTotal = 20, 0
+	for page := 0; ; page++ {
 
-	for pageNum := 1; ; pageNum++ {
-
-		jobSearches, err := v.searches.Get(context.Background(), pageSize, pageNum)
+		jobSearches, err := v.searches.Get(context.Background(), pageSize, page*pageSize)
 		if err != nil {
 			log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).Errorf("failed to get jobSearches: %v", err)
 			break
@@ -112,7 +143,7 @@ func (v *VacanciesAnalyzer) runAnalysis() {
 
 		var wg sync.WaitGroup
 		for _, jobSearch := range jobSearches {
-			v.runAnalysisForUserSearch(&wg, jobSearch)
+			v.runAnalysisForUserSearch(&wg, errChan, jobSearch)
 		}
 
 		wg.Wait()
@@ -122,7 +153,71 @@ func (v *VacanciesAnalyzer) runAnalysis() {
 	log.Infof("handled %v user searches", analyzedTotal)
 }
 
-func (v *VacanciesAnalyzer) runAnalysisForUserSearch(wg *sync.WaitGroup, search entities.JobSearch) {
+func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
+
+	fetchedTotal := 0
+
+	searches := make(map[int]*entities.JobSearch)
+	requestChan := make(chan analysisRequest, 10)
+	errChan := make(chan analysisError, 10)
+	errHandler := newErrorHandler(v.vacancies)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		v.analyzeVacancies(context.Background(), requestChan, errChan)
+	}()
+	go func() {
+		errHandler.Run(errChan)
+		removed, err := v.vacancies.RemoveFailedToAnalyse(context.Background(), 3)
+		if err != nil {
+			log.Errorf("couldn't remove failed vacancies: %v", err)
+		} else {
+			log.Infof("removed %v old failed vacancies", removed)
+		}
+	}()
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("recovered from panic: %v", r)
+		}
+
+		close(requestChan)
+		wg.Wait()
+		close(errChan)
+		<-errHandler.Done
+		log.Infof("fetched total %v failed vacancies", fetchedTotal)
+	}()
+
+	vacancies, err := v.vacancies.GetFailedToAnalyse(context.Background())
+	if err != nil {
+		log.Errorf("couldn't get failed analysed vacancies: %v", err)
+		return
+	}
+
+	fetchedTotal += len(vacancies)
+	for _, vacancy := range vacancies {
+
+		var search *entities.JobSearch
+		var ok bool
+
+		if search, ok = searches[vacancy.SearchID]; !ok {
+			search, err = v.searches.GetByID(context.Background(), int64(vacancy.SearchID))
+			if err != nil {
+				log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
+					Errorf("failed to search by id: %v", err)
+				continue
+			}
+			searches[vacancy.SearchID] = search
+		}
+
+		requestChan <- analysisRequest{search: search, vacancyID: vacancy.VacancyID}
+	}
+}
+
+func (v *VacanciesAnalyzer) runAnalysisForUserSearch(wg *sync.WaitGroup, errChan chan<- analysisError,
+	search entities.JobSearch) {
 
 	var dateFrom = search.LastCheckedVacancyTime
 	if dateFrom.IsZero() {
@@ -140,31 +235,26 @@ func (v *VacanciesAnalyzer) runAnalysisForUserSearch(wg *sync.WaitGroup, search 
 	go func(context.Context, entities.JobSearch, time.Time) {
 		defer wg.Done()
 		defer v.searchContexts.Delete(search.ID)
-		v.analyzeVacanciesForSearch(searchCtx, search, dateFrom)
+		v.analyzeVacanciesForSearch(searchCtx, errChan, search, dateFrom)
 	}(searchCtx, search, dateFrom)
 }
 
-func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, search entities.JobSearch, dateFrom time.Time) {
+func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, errChan chan<- analysisError,
+	search entities.JobSearch, dateFrom time.Time) {
 
 	var pageSize, fetchedTotal = 20, 0
 
-	var err error
-	schedules := lo.Map(search.SchedulesAsArray(), func(s entities.Schedule, _ int) hh.Schedule {
-		schedule, _err := hh.ScheduleFrom(s)
-		if _err != nil {
-			err = _err
-		}
-		return schedule
-	})
+	var latestVacancy *hh.VacancyPreview
+	requestChan := make(chan analysisRequest, pageSize)
 
-	if err != nil {
-		log.Errorf("error map schedules")
-		return
-	}
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		v.analyzeVacancies(ctx, requestChan, errChan)
+	}()
 
-	var vacancyLatestPublicationTime *hh.VacancyPreview
-
-	for pageNum := 0; ; pageNum++ {
+	for page := 0; ; page++ {
 
 		select {
 		case <-ctx.Done():
@@ -173,22 +263,13 @@ func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, searc
 		default:
 		}
 
-		params := hh.SearchParameters{
-			Text:                   search.SearchText,
-			Experience:             hh.Experience(search.Experience),
-			Schedules:              schedules,
-			DateFrom:               dateFrom,
-			AreaID:                 search.RegionID,
-			OrderByPublicationTime: true,
-			Page:                   pageNum,
-			PerPage:                pageSize,
-		}
-		if err = params.Validate(); err != nil {
-			log.Errorf("failed to validate search parameters: %v", err)
-			return
+		params, err := createHhSearchParams(&search, dateFrom, page, pageSize)
+		if err != nil {
+			log.Error(err)
+			return //to not update latest vacancy
 		}
 
-		previews, err := v.hhClient.GetVacancies(params)
+		previews, err := v.hhClient.GetVacancies(*params)
 		if err == nil {
 			fetchedTotal += len(previews)
 		} else {
@@ -200,80 +281,88 @@ func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, searc
 			break
 		}
 
-		v.analyzeVacanciesByPreviews(ctx, previews, search)
+		for i := 0; i < len(previews); i++ {
+			requestChan <- analysisRequest{vacancyID: previews[i].ID, search: &search}
+		}
 
-		if vacancyLatestPublicationTime == nil {
-			vacancyLatestPublicationTime = &previews[0]
+		if latestVacancy == nil {
+			latestVacancy = &previews[0]
 		}
 	}
 
-	if vacancyLatestPublicationTime != nil {
-		err = v.searches.UpdateLastCheckedVacancy(context.Background(), search.ID, *vacancyLatestPublicationTime)
+	if latestVacancy != nil {
+		//bg because it's better to update last checked in case of cancel
+		err := v.searches.UpdateLastCheckedVacancy(context.Background(), search.ID, *latestVacancy)
 		if err != nil {
 			log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).Errorf("failed to update last checked vacancy: %v", err)
 		}
 	}
 
+	close(requestChan)
+	wg.Wait()
 	log.Infof("fetched total %v vacancies for search with id %v", fetchedTotal, search.ID)
 }
 
-func (v *VacanciesAnalyzer) analyzeVacanciesByPreviews(ctx context.Context, previews []hh.VacancyPreview,
-	search entities.JobSearch) {
+func (v *VacanciesAnalyzer) analyzeVacancies(ctx context.Context, requestChan <-chan analysisRequest, errChan chan<- analysisError) {
 
-	for _, vacancyPreview := range previews {
+	wg := sync.WaitGroup{}
 
+	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-		}
+		case request, ok := <-requestChan:
 
-		start := time.Now()
-		vacancy, err := v.hhClient.GetVacancy(vacancyPreview.ID)
-		metrics.AnalysisStepDuration.WithLabelValues("info_retrieval").Observe(time.Since(start).Seconds())
+			if !ok {
+				wg.Wait()
+				return
+			}
 
-		if err != nil {
-			log.WithField(logger.ErrorTypeField, logger.ErrorTypeHhApi).Errorf("failed to get vacancy: %v", err)
-		} else if v.analyzeVacancy(ctx, vacancy, search) == nil {
-			metrics.HandledVacanciesCounter.Inc()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				vacancy, err := v.cacheHelper.getVacancyByID(request.vacancyID)
+				if err != nil {
+					errChan <- analysisError{vacancy.ID, request.search.ID, err}
+					return
+				}
+
+				err = v.analyzeVacancyWithAI(ctx, *vacancy, *request.search)
+				if err != nil {
+					errChan <- analysisError{vacancy.ID, request.search.ID, err}
+				}
+			}()
 		}
 	}
 }
 
-func (v *VacanciesAnalyzer) analyzeVacancy(ctx context.Context, vacancy hh.Vacancy, search entities.JobSearch) error {
+func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy hh.Vacancy, search entities.JobSearch) error {
 
-	descriptionHash := sha256.Sum256([]byte(vacancy.Description))
-	cacheID := strconv.Itoa(search.ID) + hex.EncodeToString(descriptionHash[:])
-	if _, found := v.cache.Get(cacheID); found {
+	if v.cacheHelper.isInCacheByDescription(search.ID, vacancy.Description) { //already analyzed vacancy with this description for this search
 		return nil
 	}
 
 	start := time.Now()
-
 	matched, err := v.aiService.DoesVacancyMatchSearch(ctx, search, vacancy)
 	metrics.AnalysisStepDuration.WithLabelValues("ai_analysis").Observe(time.Since(start).Seconds())
 
 	if err != nil {
-		if !errors.Is(err, context.Canceled) {
-			log.WithField(logger.ErrorTypeField, logger.ErrorTypeAiApi).
-				Errorf("failed to generate response for vacancy %v: %v", vacancy.Url, err)
+		if errors.Is(err, context.Canceled) {
+			return nil
 		}
 		return err
 	}
 
 	if matched {
-		err = v.handleApproveByAI(ctx, vacancy, search)
-		if err != nil {
+		if err = v.handleApproveByAI(ctx, vacancy, search); err != nil {
 			return err
 		}
 	} else {
 		metrics.RejectedByAiVacanciesCounter.Inc()
 	}
 
-	if err = v.cache.Add(cacheID, "", gocache.DefaultExpiration); err != nil {
-		log.Errorf("failed to add description to cache: %v", err)
-	}
-
+	v.cacheHelper.cacheByDescription(search.ID, vacancy.Description)
+	metrics.HandledVacanciesCounter.Inc()
 	return nil
 }
 
@@ -305,4 +394,34 @@ func (v *VacanciesAnalyzer) cancelSearchAnalyze(searchID int) {
 		cancel.(context.CancelFunc)()
 		v.searchContexts.Delete(searchID)
 	}
+}
+
+func createHhSearchParams(search *entities.JobSearch, dateFrom time.Time, page, pageSize int) (*hh.SearchParameters, error) {
+	var err error
+	schedules := lo.Map(search.SchedulesAsArray(), func(s entities.Schedule, _ int) hh.Schedule {
+		schedule, _err := hh.ScheduleFrom(s)
+		if _err != nil {
+			err = _err
+		}
+		return schedule
+	})
+
+	if err != nil {
+		return nil, errors.New("error map schedules")
+	}
+
+	params := hh.SearchParameters{
+		Text:                   search.SearchText,
+		Experience:             hh.Experience(search.Experience),
+		Schedules:              schedules,
+		DateFrom:               dateFrom,
+		AreaID:                 search.RegionID,
+		OrderByPublicationTime: true,
+		Page:                   page,
+		PerPage:                pageSize,
+	}
+	if err = params.Validate(); err != nil {
+		return nil, err
+	}
+	return &params, nil
 }

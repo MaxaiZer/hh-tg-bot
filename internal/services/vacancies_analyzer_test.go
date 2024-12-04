@@ -5,6 +5,7 @@ import (
 	"github.com/asaskevich/EventBus"
 	"github.com/maxaizer/hh-parser/internal/clients/hh"
 	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"net/http"
@@ -38,6 +39,11 @@ func (m *mockSearches) Get(ctx context.Context, pageSize int, pageNum int) ([]en
 	return args.Get(0).([]entities.JobSearch), args.Error(1)
 }
 
+func (m *mockSearches) GetByID(ctx context.Context, ID int64) (*entities.JobSearch, error) {
+	args := m.Called(ctx, ID)
+	return args.Get(0).(*entities.JobSearch), args.Error(1)
+}
+
 func (m *mockSearches) UpdateLastCheckedVacancy(ctx context.Context, searchID int, vacancy hh.VacancyPreview) error {
 	return m.Called(ctx, searchID, vacancy).Error(0)
 }
@@ -55,15 +61,28 @@ func (m *mockVacancies) RecordAsSentToUser(ctx context.Context, userID int64, va
 	return m.Called(ctx, userID, vacancyID).Error(0)
 }
 
+func (m *mockVacancies) AddFailedToAnalyse(ctx context.Context, searchID int, vacancyID string, error string) error {
+	return m.Called(ctx, searchID, vacancyID, error).Error(0)
+}
+
+func (m *mockVacancies) GetFailedToAnalyse(ctx context.Context) ([]entities.FailedVacancy, error) {
+	args := m.Called(ctx)
+	failedVacancies, ok := args.Get(0).([]entities.FailedVacancy)
+	if !ok {
+		return nil, errors.New("type assertion failed for []entities.FailedVacancy")
+	}
+	return failedVacancies, args.Error(0)
+}
+
+func (m *mockVacancies) RemoveFailedToAnalyse(ctx context.Context, maxAttempts int) (int64, error) {
+	args := m.Called(ctx, maxAttempts)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 func Test_AnalyzeVacancy_WhenDuplication_ShouldIgnore(t *testing.T) {
-
-	assert := assert.New(t)
-
-	mockBus := EventBus.New()
 
 	ai := mockAiClient{}
 	ai.On("GenerateResponse", mock.Anything, mock.Anything).Return("да", nil).Once()
-
 	aiServiceMock := NewAIService(&ai)
 
 	hhMock := hh.NewClient()
@@ -87,17 +106,17 @@ func Test_AnalyzeVacancy_WhenDuplication_ShouldIgnore(t *testing.T) {
 
 	search := entities.JobSearch{ID: 1}
 
-	analyzer, err := NewVacanciesAnalyzer(mockBus, aiServiceMock, hhMock, searches, vacancies)
-	assert.NoError(err)
+	analyzer, err := NewVacanciesAnalyzer(EventBus.New(), aiServiceMock, hhMock, searches, vacancies)
+	assert.NoError(t, err)
 
-	err = analyzer.analyzeVacancy(context.Background(), vacancy, search)
-	assert.NoError(err)
-	err = analyzer.analyzeVacancy(context.Background(), vacancy, search)
-	assert.NoError(err)
+	err = analyzer.analyzeVacancyWithAI(context.Background(), vacancy, search)
+	assert.NoError(t, err)
+	err = analyzer.analyzeVacancyWithAI(context.Background(), vacancy, search)
+	assert.NoError(t, err)
 	ai.AssertExpectations(t)
 
 	ai.On("GenerateResponse", mock.Anything, mock.Anything).Return("да", nil).Once()
-	err = analyzer.analyzeVacancy(context.Background(), vacancy2, search)
-	assert.NoError(err)
+	err = analyzer.analyzeVacancyWithAI(context.Background(), vacancy2, search)
+	assert.NoError(t, err)
 	ai.AssertExpectations(t)
 }

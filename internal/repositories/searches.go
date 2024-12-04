@@ -59,12 +59,12 @@ func (repo *Searches) UpdateLastCheckedVacancy(ctx context.Context, id int, vaca
 		}).Error
 }
 
-func (repo *Searches) Get(ctx context.Context, pageSize int, pageNum int) ([]entities.JobSearch, error) {
+func (repo *Searches) Get(ctx context.Context, limit int, offset int) ([]entities.JobSearch, error) {
 
 	var jobSearches []entities.JobSearch
 	if err := repo.db.WithContext(ctx).
-		Limit(pageSize).
-		Offset(pageSize * (pageNum - 1)).
+		Limit(limit).
+		Offset(offset).
 		Find(&jobSearches).Error; err != nil {
 		return nil, err
 	}

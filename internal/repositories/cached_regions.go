@@ -26,9 +26,7 @@ func (c CachedRegions) GetIdByName(ctx context.Context, name string) (string, er
 
 	id, err := c.repo.GetIdByName(ctx, name)
 	if id != "" {
-		if err = c.cache.Add(name, id, gocache.DefaultExpiration); err != nil {
-			return id, err
-		}
+		c.cache.Set(name, id, gocache.DefaultExpiration)
 	}
 
 	return id, err

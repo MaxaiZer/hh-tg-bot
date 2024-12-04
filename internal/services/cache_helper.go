@@ -6,7 +6,6 @@ import (
 	"github.com/maxaizer/hh-parser/internal/clients/hh"
 	"github.com/maxaizer/hh-parser/internal/metrics"
 	gocache "github.com/patrickmn/go-cache"
-	log "github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 )
@@ -35,9 +34,7 @@ func (h *cacheHelper) getVacancyByID(ID string) (*hh.Vacancy, error) {
 		vacancy, err = h.hhClient.GetVacancy(ID)
 		metrics.AnalysisStepDuration.WithLabelValues("info_retrieval").Observe(time.Since(start).Seconds())
 
-		if cacheErr := h.cache.Add(ID, vacancy, gocache.DefaultExpiration); cacheErr != nil {
-			log.Errorf("failed to add description to cache: %v", cacheErr)
-		}
+		h.cache.Set(ID, vacancy, gocache.DefaultExpiration)
 	}
 
 	if err != nil {
@@ -48,9 +45,7 @@ func (h *cacheHelper) getVacancyByID(ID string) (*hh.Vacancy, error) {
 
 func (h *cacheHelper) cacheByDescription(searchID int, description string) {
 	cacheID := createVacancyCacheID(searchID, description)
-	if err := h.cache.Add(cacheID, "", gocache.DefaultExpiration); err != nil {
-		log.Errorf("failed to add description to cache: %v", err)
-	}
+	h.cache.Set(cacheID, "", gocache.DefaultExpiration)
 }
 
 func (h *cacheHelper) isInCacheByDescription(searchID int, description string) bool {

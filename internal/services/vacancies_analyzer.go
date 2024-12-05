@@ -334,6 +334,8 @@ func (v *VacanciesAnalyzer) analyzeVacancies(ctx context.Context, requestChan <-
 				err = v.analyzeVacancyWithAI(ctx, *vacancy, *request.search)
 				if err != nil {
 					errChan <- analysisError{vacancy.ID, request.search.ID, err}
+				} else {
+					metrics.HandledVacanciesCounter.Inc()
 				}
 			}()
 		}
@@ -366,7 +368,6 @@ func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy hh
 	}
 
 	v.cacheHelper.cacheByDescription(search.ID, vacancy.Description)
-	metrics.HandledVacanciesCounter.Inc()
 	return nil
 }
 

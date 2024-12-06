@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"net/http"
 	"testing"
+	"time"
 )
 
 type mockHTTPClient struct {
@@ -74,7 +75,7 @@ func (m *mockVacancies) GetFailedToAnalyse(ctx context.Context) ([]entities.Fail
 	return failedVacancies, args.Error(0)
 }
 
-func (m *mockVacancies) RemoveFailedToAnalyse(ctx context.Context, maxAttempts int) (int64, error) {
+func (m *mockVacancies) RemoveFailedToAnalyse(ctx context.Context, maxAttempts int, minUpdateTime time.Time) (int64, error) {
 	args := m.Called(ctx, maxAttempts)
 	return args.Get(0).(int64), args.Error(1)
 }

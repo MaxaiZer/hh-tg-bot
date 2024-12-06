@@ -51,17 +51,18 @@ func (v *Vacancies) RemoveOldVacancies(ctx context.Context, expirationTime time.
 
 func (v *Vacancies) AddFailedToAnalyse(ctx context.Context, searchID int, vacancyID string, error string) error {
 	return v.db.WithContext(ctx).Exec(`
-        INSERT INTO failed_vacancies (search_id, vacancy_id, error, created_at) 
-        VALUES (?, ?, ?, ?) 
+        INSERT INTO failed_vacancies (search_id, vacancy_id, error, created_at, updated_at) 
+        VALUES (?, ?, ?, ?, ?) 
         ON CONFLICT(search_id, vacancy_id) 
         DO UPDATE SET 
                       attempts = failed_vacancies.attempts + 1,
         			  updated_at = CURRENT_TIMESTAMP;
-    `, searchID, vacancyID, error, time.Now().UTC()).Error
+    `, searchID, vacancyID, error, time.Now().UTC(), time.Now().UTC()).Error
 }
 
-func (v *Vacancies) RemoveFailedToAnalyse(ctx context.Context, maxAttempts int) (int64, error) {
-	res := v.db.WithContext(ctx).Delete(&entities.FailedVacancy{}, "attempts > ?", maxAttempts)
+func (v *Vacancies) RemoveFailedToAnalyse(ctx context.Context, maxAttempts int, minUpdateTime time.Time) (int64, error) {
+	res := v.db.WithContext(ctx).Delete(&entities.FailedVacancy{}, "attempts > ? OR updated_at < ?",
+		maxAttempts, minUpdateTime.UTC())
 	return res.RowsAffected, res.Error
 }
 

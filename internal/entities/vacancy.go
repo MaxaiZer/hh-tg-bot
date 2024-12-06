@@ -16,5 +16,5 @@ type FailedVacancy struct {
 	Error     string
 	Attempts  int `gorm:"default:1"`
 	CreatedAt time.Time
-	UpdatedAt *time.Time
+	UpdatedAt time.Time
 }

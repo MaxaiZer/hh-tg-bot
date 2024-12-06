@@ -26,7 +26,7 @@ type vacancyRepository interface {
 	IsSentToUser(ctx context.Context, userID int64, vacancyID string) (bool, error)
 	RecordAsSentToUser(ctx context.Context, userID int64, vacancyID string) error
 	AddFailedToAnalyse(ctx context.Context, searchID int, vacancyID string, error string) error
-	RemoveFailedToAnalyse(ctx context.Context, maxAttempts int) (int64, error)
+	RemoveFailedToAnalyse(ctx context.Context, maxAttempts int, minUpdateTime time.Time) (int64, error)
 	GetFailedToAnalyse(ctx context.Context) ([]entities.FailedVacancy, error)
 }
 
@@ -155,6 +155,7 @@ func (v *VacanciesAnalyzer) runAnalysis() {
 
 func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
 
+	startTime := time.Now()
 	fetchedTotal := 0
 
 	searches := make(map[int]*entities.JobSearch)
@@ -170,7 +171,7 @@ func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
 	}()
 	go func() {
 		errHandler.Run(errChan)
-		removed, err := v.vacancies.RemoveFailedToAnalyse(context.Background(), 3)
+		removed, err := v.vacancies.RemoveFailedToAnalyse(context.Background(), 3, startTime)
 		if err != nil {
 			log.Errorf("couldn't remove failed vacancies: %v", err)
 		} else {

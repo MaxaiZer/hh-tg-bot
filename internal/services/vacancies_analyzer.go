@@ -121,10 +121,6 @@ func (v *VacanciesAnalyzer) runAnalysis() {
 	}()
 
 	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("recovered from panic: %v", r)
-		}
-
 		close(errChan)
 		<-errHandler.Done
 	}()
@@ -180,10 +176,6 @@ func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
 	}()
 
 	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("recovered from panic: %v", r)
-		}
-
 		close(requestChan)
 		wg.Wait()
 		close(errChan)
@@ -345,7 +337,7 @@ func (v *VacanciesAnalyzer) analyzeVacancies(ctx context.Context, requestChan <-
 
 func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy hh.Vacancy, search entities.JobSearch) error {
 
-	if v.cacheHelper.isInCacheByDescription(search.ID, vacancy.Description) { //already analyzed vacancy with this description for this search
+	if v.cacheHelper.isCachedForSearch(search.ID, vacancy) { //if vacancy with this description already analyzed for this search
 		return nil
 	}
 
@@ -368,7 +360,7 @@ func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy hh
 		metrics.RejectedByAiVacanciesCounter.Inc()
 	}
 
-	v.cacheHelper.cacheByDescription(search.ID, vacancy.Description)
+	v.cacheHelper.cacheForSearch(search.ID, vacancy)
 	return nil
 }
 

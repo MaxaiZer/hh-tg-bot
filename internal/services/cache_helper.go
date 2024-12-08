@@ -24,32 +24,29 @@ func newCacheHelper(client *hh.Client, cache *gocache.Cache) *cacheHelper {
 
 func (h *cacheHelper) getVacancyByID(ID string) (*hh.Vacancy, error) {
 
-	var vacancy hh.Vacancy
-	var err error
-
 	if cached, found := h.cache.Get(ID); found {
-		vacancy = cached.(hh.Vacancy)
-	} else {
-		start := time.Now()
-		vacancy, err = h.hhClient.GetVacancy(ID)
-		metrics.AnalysisStepDuration.WithLabelValues("info_retrieval").Observe(time.Since(start).Seconds())
-
-		h.cache.Set(ID, vacancy, gocache.DefaultExpiration)
+		vacancy := cached.(hh.Vacancy)
+		return &vacancy, nil
 	}
 
+	start := time.Now()
+	vacancy, err := h.hhClient.GetVacancy(ID)
 	if err != nil {
 		return nil, err
 	}
+
+	metrics.AnalysisStepDuration.WithLabelValues("info_retrieval").Observe(time.Since(start).Seconds())
+	h.cache.Set(ID, vacancy, gocache.DefaultExpiration)
 	return &vacancy, nil
 }
 
-func (h *cacheHelper) cacheByDescription(searchID int, description string) {
-	cacheID := createVacancyCacheID(searchID, description)
+func (h *cacheHelper) cacheForSearch(searchID int, vacancy hh.Vacancy) {
+	cacheID := createVacancyCacheID(searchID, vacancy.Description)
 	h.cache.Set(cacheID, "", gocache.DefaultExpiration)
 }
 
-func (h *cacheHelper) isInCacheByDescription(searchID int, description string) bool {
-	_, found := h.cache.Get(createVacancyCacheID(searchID, description))
+func (h *cacheHelper) isCachedForSearch(searchID int, vacancy hh.Vacancy) bool {
+	_, found := h.cache.Get(createVacancyCacheID(searchID, vacancy.Description))
 	return found
 }
 

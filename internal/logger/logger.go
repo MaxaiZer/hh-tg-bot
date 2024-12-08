@@ -42,11 +42,12 @@ func (h *prometheusHook) Levels() []log.Level {
 func Setup(cfg config.LoggerConfig) {
 
 	logDir := "./logs"
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	var err error
+	if err = os.MkdirAll(logDir, 0755); err != nil {
 		log.Fatalf("Failed to create log directory: %v", err)
 	}
 
-	logFile, err := os.OpenFile(logDir+"/errors.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err = os.OpenFile(logDir+"/errors.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalf("Failed to open log file: %v", err)
 	}

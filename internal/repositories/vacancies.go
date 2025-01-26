@@ -16,10 +16,10 @@ func NewVacanciesRepository(db *gorm.DB) *Vacancies {
 	return &Vacancies{db: db}
 }
 
-func (v *Vacancies) IsSentToUser(ctx context.Context, userID int64, vacancyID string) (bool, error) {
+func (v *Vacancies) IsSentToUser(ctx context.Context, userID int64, descriptionHash []byte) (bool, error) {
 	var notified entities.NotifiedVacancy
 	err := v.db.WithContext(ctx).
-		Where("user_id = ? AND vacancy_id = ?", userID, vacancyID).
+		Where("user_id = ? AND description_hash = ?", userID, descriptionHash).
 		First(&notified).Error
 
 	if err != nil {
@@ -36,11 +36,11 @@ func (v *Vacancies) IsSentToUser(ctx context.Context, userID int64, vacancyID st
 	return true, err
 }
 
-func (v *Vacancies) RecordAsSentToUser(ctx context.Context, userID int64, vacancyID string) error {
+func (v *Vacancies) RecordAsSentToUser(ctx context.Context, userID int64, descriptionHash []byte) error {
 	return v.db.WithContext(ctx).Create(&entities.NotifiedVacancy{
-		UserID:        userID,
-		VacancyID:     vacancyID,
-		LastCheckedAt: time.Now(),
+		UserID:          userID,
+		DescriptionHash: descriptionHash,
+		LastCheckedAt:   time.Now(),
 	}).Error
 }
 

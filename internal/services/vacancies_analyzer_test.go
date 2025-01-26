@@ -53,13 +53,13 @@ type mockVacancies struct {
 	mock.Mock
 }
 
-func (m *mockVacancies) IsSentToUser(ctx context.Context, userID int64, vacancyID string) (bool, error) {
-	args := m.Called(ctx, userID, vacancyID)
+func (m *mockVacancies) IsSentToUser(ctx context.Context, userID int64, descriptionHash []byte) (bool, error) {
+	args := m.Called(ctx, userID, descriptionHash)
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *mockVacancies) RecordAsSentToUser(ctx context.Context, userID int64, vacancyID string) error {
-	return m.Called(ctx, userID, vacancyID).Error(0)
+func (m *mockVacancies) RecordAsSentToUser(ctx context.Context, userID int64, descriptionHash []byte) error {
+	return m.Called(ctx, userID, descriptionHash).Error(0)
 }
 
 func (m *mockVacancies) AddFailedToAnalyse(ctx context.Context, searchID int, vacancyID string, error string) error {

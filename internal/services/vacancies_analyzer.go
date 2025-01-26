@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"github.com/asaskevich/EventBus"
 	"github.com/maxaizer/hh-parser/internal/clients/hh"
@@ -23,8 +24,8 @@ type searchRepository interface {
 }
 
 type vacancyRepository interface {
-	IsSentToUser(ctx context.Context, userID int64, vacancyID string) (bool, error)
-	RecordAsSentToUser(ctx context.Context, userID int64, vacancyID string) error
+	IsSentToUser(ctx context.Context, userID int64, descriptionHash []byte) (bool, error)
+	RecordAsSentToUser(ctx context.Context, userID int64, descriptionHash []byte) error
 	AddFailedToAnalyse(ctx context.Context, searchID int, vacancyID string, error string) error
 	RemoveFailedToAnalyse(ctx context.Context, maxAttempts int, minUpdateTime time.Time) (int64, error)
 	GetFailedToAnalyse(ctx context.Context) ([]entities.FailedVacancy, error)
@@ -366,7 +367,8 @@ func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy hh
 
 func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy hh.Vacancy, search entities.JobSearch) error {
 
-	wasSent, err := v.vacancies.IsSentToUser(ctx, search.UserID, vacancy.ID)
+	descriptionHash := sha256.Sum256([]byte(vacancy.Description))
+	wasSent, err := v.vacancies.IsSentToUser(ctx, search.UserID, descriptionHash[:])
 	if err != nil {
 		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
 			Errorf("failed to check if vacancy was sent to user: %v", err)
@@ -377,7 +379,7 @@ func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy hh.Va
 		return nil
 	}
 
-	if err = v.vacancies.RecordAsSentToUser(ctx, search.UserID, vacancy.ID); err != nil {
+	if err = v.vacancies.RecordAsSentToUser(ctx, search.UserID, descriptionHash[:]); err != nil {
 		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
 			Errorf("failed to record vacancy as send to user: %v", err)
 		return err

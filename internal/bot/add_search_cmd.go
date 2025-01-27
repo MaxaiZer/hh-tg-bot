@@ -174,8 +174,8 @@ func (c *addSearchCommand) addSearch() {
 }
 
 func newKeywordsInput(chatID int64, onFinish func(input string)) *textInput {
-	return newTextInput(chatID, "Введите ключевые слова для поиска. Например, \"C#\"."+
-		" Учтите, что поиск будет по наличию ВСЕХ ключевых слов в вакансиях.", onFinish)
+	return newTextInput(chatID, "Введите ключевые слова для поиска. Например, \"Промывайщик полов\", "+
+		"\"Go OR Golang\".", onFinish)
 }
 
 func newWishInput(chatID int64, onFinish func(input string)) *textInput {

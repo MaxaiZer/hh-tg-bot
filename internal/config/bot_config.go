@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"github.com/spf13/viper"
 	"strings"
+	"time"
 )
 
 type BotConfig struct {
-	Token                  string  `mapstructure:"token"`
-	AIKey                  string  `mapstructure:"ai_key"`
-	HhMaxRequestsPerSecond float32 `mapstructure:"hh_max_requests_per_second"`
-	AiMaxRequestsPerMinute float32 `mapstructure:"ai_max_requests_per_minute"`
-	AiMaxRequestsPerDay    float32 `mapstructure:"ai_max_requests_per_day"`
+	Token                  string        `mapstructure:"token"`
+	AIKey                  string        `mapstructure:"ai_key"`
+	AnalysisInterval       time.Duration `mapstructure:"analysis_interval"`
+	HhMaxRequestsPerSecond float32       `mapstructure:"hh_max_requests_per_second"`
+	AiMaxRequestsPerMinute float32       `mapstructure:"ai_max_requests_per_minute"`
+	AiMaxRequestsPerDay    float32       `mapstructure:"ai_max_requests_per_day"`
 }
 
 func (config BotConfig) validate() error {
@@ -25,6 +27,10 @@ func (config BotConfig) validate() error {
 
 	if config.AIKey == "" {
 		missingFields = append(missingFields, "ai_key")
+	}
+
+	if config.AnalysisInterval == time.Duration(0) {
+		missingFields = append(missingFields, "analysis_interval")
 	}
 
 	if len(missingFields) > 0 {

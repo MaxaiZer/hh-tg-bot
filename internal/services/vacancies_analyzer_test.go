@@ -107,7 +107,7 @@ func Test_AnalyzeVacancy_WhenDuplication_ShouldIgnore(t *testing.T) {
 
 	search := entities.JobSearch{ID: 1}
 
-	analyzer, err := NewVacanciesAnalyzer(EventBus.New(), aiServiceMock, hhMock, searches, vacancies)
+	analyzer, err := NewVacanciesAnalyzer(EventBus.New(), aiServiceMock, hhMock, searches, vacancies, time.Hour)
 	assert.NoError(t, err)
 
 	err = analyzer.analyzeVacancyWithAI(context.Background(), vacancy, search)

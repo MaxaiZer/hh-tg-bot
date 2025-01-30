@@ -37,7 +37,7 @@ func runAnalyzer(ctx context.Context, cfg *config.Config, vacancies *repositorie
 	}
 	defer cleaner.StopCron()
 
-	analyzer, err := services.NewVacanciesAnalyzer(bus, aiService, hhClient, searches, vacancies)
+	analyzer, err := services.NewVacanciesAnalyzer(bus, aiService, hhClient, searches, vacancies, cfg.Bot.AnalysisInterval)
 	if err != nil {
 		log.Fatalf("can't create analyzer: %v", err)
 	}

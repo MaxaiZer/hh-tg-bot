@@ -55,7 +55,7 @@ type VacanciesAnalyzer struct {
 }
 
 func NewVacanciesAnalyzer(bus EventBus.Bus, aiService *AIService, hhClient *hh.Client,
-	searchRepo searchRepository, vacancyRepo vacancyRepository) (*VacanciesAnalyzer, error) {
+	searchRepo searchRepository, vacancyRepo vacancyRepository, analysisInterval time.Duration) (*VacanciesAnalyzer, error) {
 
 	v := &VacanciesAnalyzer{
 		bus:              bus,
@@ -64,7 +64,7 @@ func NewVacanciesAnalyzer(bus EventBus.Bus, aiService *AIService, hhClient *hh.C
 		hhClient:         hhClient,
 		aiService:        aiService,
 		cacheHelper:      newCacheHelper(hhClient, gocache.New(30*time.Minute, 1*time.Hour)),
-		analysisInterval: 3 * time.Hour,
+		analysisInterval: analysisInterval,
 	}
 
 	err := bus.Subscribe(events.SearchDeletedTopic, func(event events.SearchDeleted) {

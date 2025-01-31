@@ -45,6 +45,11 @@ func (c *DbContext) Migrate() error {
 		return fmt.Errorf("failed to migrate FailedVacancy entity: %w", err)
 	}
 
+	err = c.DB.AutoMigrate(entities.ArbitraryData{})
+	if err != nil {
+		return fmt.Errorf("failed to migrate ArbitraryData entity: %w", err)
+	}
+
 	var regionsCount int64
 	if err = c.DB.Model(entities.Region{}).Count(&regionsCount).Error; err != nil {
 		return fmt.Errorf("failed to count regions: %w", err)

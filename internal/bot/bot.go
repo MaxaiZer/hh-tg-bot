@@ -11,9 +11,19 @@ import (
 	"github.com/maxaizer/hh-parser/internal/events"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	log "github.com/sirupsen/logrus"
-	"os"
 	"slices"
 )
+
+type Repositories struct {
+	Search searchRepository
+	Region regionRepository
+	Data   dataRepository
+}
+
+type dataRepository interface {
+	Save(ctx context.Context, id string, data []byte) error
+	LoadAndRemove(ctx context.Context, id string) ([]byte, error)
+}
 
 type searchRepository interface {
 	GetByUser(ctx context.Context, userID int64) ([]entities.JobSearch, error)
@@ -31,15 +41,14 @@ type Bot struct {
 	api          *botApi.BotAPI
 	userContexts map[int64]*userContext
 	bus          EventBus.Bus
-	searches     searchRepository
-	regions      regionRepository
+	repositories Repositories
 }
 
 const backToMenuCommandName = "В главное меню"
 
 var globalCommands = []string{addSearchCommandName, removeSearchCommandName, backToMenuCommandName, editSearchCommandName}
 
-func NewBot(token string, bus EventBus.Bus, searchRepo searchRepository, regionRepo regionRepository) (*Bot, error) {
+func NewBot(token string, bus EventBus.Bus, repositories Repositories) (*Bot, error) {
 
 	api, err := botApi.NewBotAPI(token)
 	if err != nil {
@@ -56,16 +65,19 @@ func NewBot(token string, bus EventBus.Bus, searchRepo searchRepository, regionR
 		return nil, errors.New("bus is nil")
 	}
 
-	if searchRepo == nil {
+	if repositories.Search == nil {
 		return nil, errors.New("search repository is nil")
 	}
 
-	if regionRepo == nil {
+	if repositories.Region == nil {
 		return nil, errors.New("region repository is nil")
 	}
 
-	createdBot := &Bot{api: api, userContexts: make(map[int64]*userContext), bus: bus,
-		searches: searchRepo, regions: regionRepo}
+	if repositories.Data == nil {
+		return nil, errors.New("data repository is nil")
+	}
+
+	createdBot := &Bot{api: api, userContexts: make(map[int64]*userContext), bus: bus, repositories: repositories}
 
 	err = bus.Subscribe(events.VacancyFoundTopic, createdBot.onVacancyFound)
 	if err != nil {
@@ -177,11 +189,11 @@ func (b *Bot) createCommand(name string, chatID int64) (command, error) {
 
 	switch name {
 	case addSearchCommandName:
-		return newAddSearchCommand(b.api, chatID, b.searches, b.regions), nil
+		return newAddSearchCommand(b.api, chatID, b.repositories.Search, b.repositories.Region), nil
 	case removeSearchCommandName:
-		return newRemoveSearchCommand(b.api, chatID, b.bus, b.searches)
+		return newRemoveSearchCommand(b.api, chatID, b.bus, b.repositories.Search)
 	case editSearchCommandName:
-		return newEditSearchCommand(b.api, chatID, b.bus, b.searches)
+		return newEditSearchCommand(b.api, chatID, b.bus, b.repositories.Search)
 	default:
 		return nil, fmt.Errorf("unknown command: %v", name)
 	}
@@ -225,11 +237,11 @@ func (b *Bot) saveUserContexts() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile("user_contexts.json", data, 0644)
+	return b.repositories.Data.Save(context.Background(), "user_contexts", data)
 }
 
 func (b *Bot) loadUserContexts() error {
-	data, err := os.ReadFile("user_contexts.json")
+	data, err := b.repositories.Data.LoadAndRemove(context.Background(), "user_contexts")
 	if err != nil {
 		return err
 	}

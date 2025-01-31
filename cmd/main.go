@@ -70,10 +70,15 @@ func main() {
 	searches := repositories.NewSearchRepository(dbContext.DB)
 	regions := repositories.NewCachedRegions(repositories.NewRegionsRepository(dbContext.DB))
 	vacancies := repositories.NewVacanciesRepository(dbContext.DB)
+	data := repositories.NewDataRepository(dbContext.DB)
 	//ToDo: separate func to run bot
 	bus := EventBus.New()
 
-	tgbot, err := bot.NewBot(cfg.Bot.Token, bus, searches, regions)
+	tgbot, err := bot.NewBot(cfg.Bot.Token, bus, bot.Repositories{
+		Search: searches,
+		Region: regions,
+		Data:   data,
+	})
 	if err != nil {
 		log.Fatalf("can't create bot: %v", err)
 	}

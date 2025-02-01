@@ -60,3 +60,51 @@ jobs:
         file: Dockerfile
         tags: ghcr.io/${{ env.PREFIX_LC }}/hh-tg-bot:latest
         push: true
+        
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      DIR: "/bot"
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+    
+      - name: Upload files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "docker-compose.yml,prometheus.yml,configs/**"
+          target: "${{ env.DIR }}"
+
+      - name: Ensure secrets are set
+        run: |
+          if [ -z "${{ secrets.TOKEN }}" ] || [ -z "${{ secrets.AI_KEY }}" ]; then
+            echo "Required secrets are missing!"
+            exit 1
+          fi
+
+      - name: Create .env
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            echo "TOKEN=${{ secrets.TOKEN }}" > ${{ env.DIR }}/.env
+            echo "AI_KEY=${{ secrets.AI_KEY }}" >> ${{ env.DIR }}/.env
+          
+      - name: Run bot
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ${{ env.DIR }}
+            docker compose pull
+            docker compose down
+            docker compose up -d

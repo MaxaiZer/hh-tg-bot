@@ -1,7 +1,7 @@
 bot:
   ai_key: "test_value"
   token: "test_value"
-  analysis_interval: "3h"
+  analysis_interval: "1h"
   hh_max_requests_per_second: 1
   ai_max_requests_per_minute: 15
   ai_max_requests_per_day: 1500

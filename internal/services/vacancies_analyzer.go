@@ -321,13 +321,13 @@ func (v *VacanciesAnalyzer) analyzeVacancies(ctx context.Context, requestChan <-
 				defer wg.Done()
 				vacancy, err := v.cacheHelper.getVacancyByID(request.vacancyID)
 				if err != nil {
-					errChan <- analysisError{vacancy.ID, request.search.ID, err}
+					errChan <- analysisError{request.vacancyID, request.search.ID, err}
 					return
 				}
 
 				err = v.analyzeVacancyWithAI(ctx, *vacancy, *request.search)
 				if err != nil {
-					errChan <- analysisError{vacancy.ID, request.search.ID, err}
+					errChan <- analysisError{request.vacancyID, request.search.ID, err}
 				} else {
 					metrics.HandledVacanciesCounter.Inc()
 				}

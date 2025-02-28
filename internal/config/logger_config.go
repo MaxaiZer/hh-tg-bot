@@ -17,8 +17,12 @@ const (
 )
 
 type LoggerConfig struct {
-	LogLevel   logLevel `mapstructure:"log_level"`
-	OutputFile string   `mapstructure:"output_file"`
+	LogLevel     logLevel `mapstructure:"log_level"`
+	AppName      string   `mapstructure:"app_name"`
+	LokiURL      string   `mapstructure:"loki_url"`
+	LokiUser     string   `mapstructure:"loki_user"`
+	LokiPassword string   `mapstructure:"loki_password"`
+	OutputFile   string   `mapstructure:"output_file"`
 }
 
 func (config LoggerConfig) validate() error {
@@ -39,5 +43,26 @@ func (config LoggerConfig) validate() error {
 }
 
 func (config LoggerConfig) bindEnvironmentVariables() error {
+
+	err := viper.BindEnv("logger.loki_url", "LOKI_URL")
+	if err != nil {
+		return err
+	}
+
+	err = viper.BindEnv("logger.loki_user", "LOKI_USER")
+	if err != nil {
+		return err
+	}
+
+	err = viper.BindEnv("logger.loki_password", "LOKI_PASSWORD")
+	if err != nil {
+		return err
+	}
+
+	err = viper.BindEnv("logger.app_name", "APP_NAME")
+	if err != nil {
+		return err
+	}
+
 	return viper.BindEnv("logger.log_level", "LOG_LEVEL")
 }

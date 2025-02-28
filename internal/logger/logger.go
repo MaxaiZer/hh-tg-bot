@@ -1,11 +1,15 @@
 package logger
 
 import (
-	"github.com/maxaizer/hh-parser/internal/config"
-	"github.com/maxaizer/hh-parser/internal/metrics"
+	"context"
+	"fmt"
+	"github.com/maxaizer/hh-parser/pkg/loki"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
+	"time"
 )
 
 const ErrorTypeField = "error_type"
@@ -18,30 +22,22 @@ const (
 )
 
 var logFile *os.File
+var ctx context.Context
+var cancelFunc context.CancelFunc
 
-type prometheusHook struct{}
-
-func (h *prometheusHook) Fire(entry *log.Entry) error {
-	errorType, ok := entry.Data[ErrorTypeField].(string)
-	if !ok {
-		errorType = "unknown"
-	}
-
-	metrics.ErrorsCounter.WithLabelValues(errorType).Inc()
-	return nil
+type Config struct {
+	LogLevel     log.Level
+	AppName      string
+	LokiURL      string
+	LokiUser     string
+	LokiPassword string
 }
 
-func (h *prometheusHook) Levels() []log.Level {
-	return []log.Level{
-		log.ErrorLevel,
-		log.FatalLevel,
-		log.PanicLevel,
-	}
-}
+func Setup(cfg Config) {
 
-func Setup(cfg config.LoggerConfig) {
-
+	ctx, cancelFunc = context.WithCancel(context.Background())
 	logDir := "./logs"
+
 	var err error
 	if err = os.MkdirAll(logDir, 0755); err != nil {
 		log.Fatalf("Failed to create log directory: %v", err)
@@ -58,28 +54,34 @@ func Setup(cfg config.LoggerConfig) {
 	customFormatter := &log.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02T15:04:05.000 -0700",
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			funcName := filepath.Base(f.Function)
+			fileInfo := fmt.Sprintf("%s:%d", filepath.Base(f.File), f.Line)
+			return funcName, fileInfo
+		},
 	}
 	log.SetFormatter(customFormatter)
-	log.AddHook(&prometheusHook{})
+	log.SetReportCaller(true)
 
-	switch cfg.LogLevel {
-	case config.LevelInfo:
-		log.SetLevel(log.InfoLevel)
-	case config.LevelDebug:
-		log.SetLevel(log.DebugLevel)
-	case config.LevelWarning:
-		log.SetLevel(log.WarnLevel)
-	case config.LevelError:
-		log.SetLevel(log.ErrorLevel)
-	case config.LevelFatal:
-		log.SetLevel(log.FatalLevel)
-	default:
-		log.SetLevel(log.InfoLevel)
+	addPrometheusHook()
+	err = addLokiHook(ctx, loki.Config{
+		Url:          cfg.LokiURL,
+		Username:     cfg.LokiUser,
+		Password:     cfg.LokiPassword,
+		BatchMaxSize: 1000,
+		BatchMaxWait: 10 * time.Second,
+		Labels:       map[string]string{"app": cfg.AppName},
+	}, cfg.LogLevel)
+	if err != nil {
+		log.Fatalf("Failed to add loki hook: %v", err)
 	}
+
+	log.SetLevel(cfg.LogLevel)
 }
 
 func Cleanup() {
 	if logFile != nil {
 		_ = logFile.Close()
 	}
+	cancelFunc()
 }

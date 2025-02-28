@@ -16,6 +16,33 @@ import (
 	"syscall"
 )
 
+func setupLogger(cfg *config.Config) {
+
+	var level log.Level
+
+	switch cfg.Logger.LogLevel {
+	case config.LevelInfo:
+		level = log.InfoLevel
+	case config.LevelDebug:
+		level = log.DebugLevel
+	case config.LevelWarning:
+		level = log.WarnLevel
+	case config.LevelError:
+		level = log.ErrorLevel
+	case config.LevelFatal:
+		level = log.FatalLevel
+	default:
+		level = log.InfoLevel
+	}
+	logger.Setup(logger.Config{
+		LogLevel:     level,
+		AppName:      cfg.Logger.AppName,
+		LokiURL:      cfg.Logger.LokiURL,
+		LokiUser:     cfg.Logger.LokiUser,
+		LokiPassword: cfg.Logger.LokiPassword,
+	})
+}
+
 func runAnalyzer(ctx context.Context, cfg *config.Config, vacancies *repositories.Vacancies,
 	searches *repositories.Searches, bus EventBus.Bus) {
 
@@ -51,7 +78,7 @@ func main() {
 
 	cfg := config.Get()
 
-	logger.Setup(cfg.Logger)
+	setupLogger(cfg)
 	defer logger.Cleanup()
 
 	metrics.StartMetricsServer()

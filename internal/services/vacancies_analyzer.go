@@ -5,35 +5,43 @@ import (
 	"crypto/sha256"
 	"errors"
 	"github.com/asaskevich/EventBus"
-	"github.com/maxaizer/hh-parser/internal/clients/hh"
 	"github.com/maxaizer/hh-parser/internal/entities"
+	errs "github.com/maxaizer/hh-parser/internal/errors"
 	"github.com/maxaizer/hh-parser/internal/events"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	"github.com/maxaizer/hh-parser/internal/metrics"
 	gocache "github.com/patrickmn/go-cache"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
 
+type vacanciesAIService interface {
+	DoesVacancyMatchSearch(ctx context.Context, search entities.JobSearch, vacancy entities.Vacancy) (bool, error)
+}
+
+type vacanciesRetriever interface {
+	GetVacancies(search *entities.JobSearch, dateFrom time.Time, page, pageSize int) ([]entities.Vacancy, error)
+	GetVacancy(ID string) (*entities.Vacancy, error)
+}
+
 type searchRepository interface {
 	Get(ctx context.Context, limit int, offset int) ([]entities.JobSearch, error)
 	GetByID(ctx context.Context, ID int64) (*entities.JobSearch, error)
-	UpdateLastCheckedVacancy(ctx context.Context, searchID int, vacancy hh.VacancyPreview) error
+	UpdateLastCheckedVacancy(ctx context.Context, searchID int, vacancy entities.Vacancy) error
 }
 
 type vacancyRepository interface {
-	IsSentToUser(ctx context.Context, userID int64, descriptionHash []byte) (bool, error)
-	RecordAsSentToUser(ctx context.Context, userID int64, descriptionHash []byte) error
-	AddFailedToAnalyse(ctx context.Context, searchID int, vacancyID string, error string) error
-	RemoveFailedToAnalyse(ctx context.Context, maxAttempts int, minUpdateTime time.Time) (int64, error)
-	GetFailedToAnalyse(ctx context.Context) ([]entities.FailedVacancy, error)
+	IsSentToUser(ctx context.Context, vacancy entities.NotifiedVacancyID) (bool, error)
+	RecordAsSentToUser(ctx context.Context, vacancy entities.NotifiedVacancyID) error
+	AddFailedToAnalyze(ctx context.Context, searchID int, vacancyID string, error string) error
+	RemoveFailedToAnalyze(ctx context.Context, maxAttempts int, minUpdateTime time.Time) (int64, error)
+	GetFailedToAnalyze(ctx context.Context) ([]entities.FailedVacancy, error)
 }
 
 type analysisRequest struct {
-	vacancyID string
-	search    *entities.JobSearch
+	search  *entities.JobSearch
+	vacancy *entities.Vacancy
 }
 
 type analysisError struct {
@@ -43,27 +51,28 @@ type analysisError struct {
 }
 
 type VacanciesAnalyzer struct {
-	bus              EventBus.Bus
-	searches         searchRepository
-	vacancies        vacancyRepository
-	hhClient         *hh.Client
-	aiService        *AIService
-	cacheHelper      *cacheHelper
-	lastAnalysisTime time.Time
-	analysisInterval time.Duration
-	searchContexts   sync.Map
+	bus                      EventBus.Bus
+	searches                 searchRepository
+	vacancies                vacancyRepository
+	retriever                vacanciesRetriever
+	aiService                vacanciesAIService
+	cacheHelper              *cacheHelper
+	lastAnalysisTime         time.Time
+	analysisInterval         time.Duration
+	searchContexts           sync.Map
+	analysisCompleteCallback func()
 }
 
-func NewVacanciesAnalyzer(bus EventBus.Bus, aiService *AIService, hhClient *hh.Client,
+func NewVacanciesAnalyzer(bus EventBus.Bus, aiService vacanciesAIService, vacanciesRetriever vacanciesRetriever,
 	searchRepo searchRepository, vacancyRepo vacancyRepository, analysisInterval time.Duration) (*VacanciesAnalyzer, error) {
 
 	v := &VacanciesAnalyzer{
 		bus:              bus,
 		searches:         searchRepo,
 		vacancies:        vacancyRepo,
-		hhClient:         hhClient,
+		retriever:        vacanciesRetriever,
 		aiService:        aiService,
-		cacheHelper:      newCacheHelper(hhClient, gocache.New(30*time.Minute, 1*time.Hour)),
+		cacheHelper:      newCacheHelper(gocache.New(30*time.Minute, 1*time.Hour)),
 		analysisInterval: analysisInterval,
 	}
 
@@ -84,6 +93,10 @@ func NewVacanciesAnalyzer(bus EventBus.Bus, aiService *AIService, hhClient *hh.C
 	return v, nil
 }
 
+func (v *VacanciesAnalyzer) WithAnalysisCompleteCallback(f func()) {
+	v.analysisCompleteCallback = f
+}
+
 func (v *VacanciesAnalyzer) Run() {
 	for {
 		startTime := time.Now()
@@ -98,6 +111,10 @@ func (v *VacanciesAnalyzer) Run() {
 		v.rerunAnalysisForFailedVacancies()
 		executionTime = time.Now().Sub(startTime.Add(executionTime))
 		log.Infof("analysis for failed vacancies ended after %v", executionTime)
+
+		if v.analysisCompleteCallback != nil {
+			v.analysisCompleteCallback()
+		}
 
 		var sleepTime time.Duration
 		if executionTime <= v.analysisInterval {
@@ -152,7 +169,7 @@ func (v *VacanciesAnalyzer) runAnalysis() {
 
 func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
 
-	startTime := time.Now()
+	startTime := time.Now().UTC()
 	fetchedTotal := 0
 
 	searches := make(map[int]*entities.JobSearch)
@@ -168,12 +185,6 @@ func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
 	}()
 	go func() {
 		errHandler.Run(errChan)
-		removed, err := v.vacancies.RemoveFailedToAnalyse(context.Background(), 3, startTime)
-		if err != nil {
-			log.Errorf("couldn't remove failed vacancies: %v", err)
-		} else {
-			log.Infof("removed %v old failed vacancies", removed)
-		}
 	}()
 
 	defer func() {
@@ -182,31 +193,44 @@ func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
 		close(errChan)
 		<-errHandler.Done
 		log.Infof("fetched total %v failed vacancies", fetchedTotal)
+
+		removed, err := v.vacancies.RemoveFailedToAnalyze(context.Background(), 3, startTime)
+		if err != nil {
+			log.Errorf("couldn't remove failed vacancies: %v", err)
+		} else {
+			log.Infof("removed %v old failed vacancies", removed)
+		}
 	}()
 
-	vacancies, err := v.vacancies.GetFailedToAnalyse(context.Background())
+	vacancies, err := v.vacancies.GetFailedToAnalyze(context.Background())
 	if err != nil {
-		log.Errorf("couldn't get failed analysed vacancies: %v", err)
+		log.Errorf("couldn't get failed analyzed vacancies: %v", err)
 		return
 	}
 
 	fetchedTotal += len(vacancies)
-	for _, vacancy := range vacancies {
+	for _, vacancyInfo := range vacancies {
 
 		var search *entities.JobSearch
 		var ok bool
 
-		if search, ok = searches[vacancy.SearchID]; !ok {
-			search, err = v.searches.GetByID(context.Background(), int64(vacancy.SearchID))
+		if search, ok = searches[vacancyInfo.SearchID]; !ok {
+			search, err = v.searches.GetByID(context.Background(), int64(vacancyInfo.SearchID))
 			if err != nil {
 				log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
-					Errorf("failed to search by id: %v", err)
+					Errorf("failed to get search by id: %v", err)
 				continue
 			}
-			searches[vacancy.SearchID] = search
+			searches[vacancyInfo.SearchID] = search
 		}
 
-		requestChan <- analysisRequest{search: search, vacancyID: vacancy.VacancyID}
+		vacancy, err := v.retriever.GetVacancy(vacancyInfo.VacancyID)
+		if err != nil {
+			log.Errorf("failed to get vacancy by id: %v", err)
+			continue
+		}
+
+		requestChan <- analysisRequest{search: search, vacancy: vacancy}
 	}
 }
 
@@ -238,7 +262,7 @@ func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, errCh
 
 	var pageSize, fetchedTotal = 20, 0
 
-	var latestVacancy *hh.VacancyPreview
+	var latestVacancy *entities.Vacancy
 	requestChan := make(chan analysisRequest, pageSize)
 
 	wg := &sync.WaitGroup{}
@@ -257,34 +281,22 @@ func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, errCh
 		default:
 		}
 
-		params, err := createHhSearchParams(&search, dateFrom, page, pageSize)
+		vacancies, err := v.retriever.GetVacancies(&search, dateFrom, page, pageSize)
 		if err != nil {
-			if errors.Is(err, hh.ErrTooDeepPagination) {
-				log.Warningf("too deep pagination for search with id %d, page: %d, per page: %d", search.ID, page, pageSize)
-				break
-			}
-			log.Error(err)
-			return //to not update latest vacancy
-		}
-
-		previews, err := v.hhClient.GetVacancies(*params)
-		if err == nil {
-			fetchedTotal += len(previews)
-		} else {
 			log.WithField(logger.ErrorTypeField, logger.ErrorTypeHhApi).Errorf("failed to get vacancies previews: %v", err)
-			continue
+			return //to not update last checked vacancy
 		}
 
-		if len(previews) == 0 {
+		if len(vacancies) == 0 {
 			break
 		}
 
-		for i := 0; i < len(previews); i++ {
-			requestChan <- analysisRequest{vacancyID: previews[i].ID, search: &search}
+		for i := 0; i < len(vacancies); i++ {
+			requestChan <- analysisRequest{search: &search, vacancy: &vacancies[i]}
 		}
 
 		if latestVacancy == nil {
-			latestVacancy = &previews[0]
+			latestVacancy = &vacancies[0]
 		}
 	}
 
@@ -319,15 +331,10 @@ func (v *VacanciesAnalyzer) analyzeVacancies(ctx context.Context, requestChan <-
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				vacancy, err := v.cacheHelper.getVacancyByID(request.vacancyID)
-				if err != nil {
-					errChan <- analysisError{request.vacancyID, request.search.ID, err}
-					return
-				}
 
-				err = v.analyzeVacancyWithAI(ctx, *vacancy, *request.search)
+				err := v.analyzeVacancyWithAI(ctx, *request.vacancy, *request.search)
 				if err != nil {
-					errChan <- analysisError{request.vacancyID, request.search.ID, err}
+					errChan <- analysisError{request.vacancy.ID, request.search.ID, err}
 				} else {
 					metrics.HandledVacanciesCounter.Inc()
 				}
@@ -336,7 +343,7 @@ func (v *VacanciesAnalyzer) analyzeVacancies(ctx context.Context, requestChan <-
 	}
 }
 
-func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy hh.Vacancy, search entities.JobSearch) error {
+func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy entities.Vacancy, search entities.JobSearch) error {
 
 	if v.cacheHelper.isCachedForSearch(search.ID, vacancy) { //if vacancy with this description already analyzed for this search
 		return nil
@@ -365,10 +372,16 @@ func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy hh
 	return nil
 }
 
-func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy hh.Vacancy, search entities.JobSearch) error {
+func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy entities.Vacancy, search entities.JobSearch) error {
 
 	descriptionHash := sha256.Sum256([]byte(vacancy.Description))
-	wasSent, err := v.vacancies.IsSentToUser(ctx, search.UserID, descriptionHash[:])
+	vacancyID := entities.NotifiedVacancyID{
+		UserID:          search.UserID,
+		VacancyID:       vacancy.ID,
+		DescriptionHash: descriptionHash[:],
+	}
+
+	wasSent, err := v.vacancies.IsSentToUser(ctx, vacancyID)
 	if err != nil {
 		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
 			Errorf("failed to check if vacancy was sent to user: %v", err)
@@ -379,7 +392,10 @@ func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy hh.Va
 		return nil
 	}
 
-	if err = v.vacancies.RecordAsSentToUser(ctx, search.UserID, descriptionHash[:]); err != nil {
+	if err = v.vacancies.RecordAsSentToUser(ctx, vacancyID); err != nil {
+		if errors.Is(err, errs.VacancyAlreadySentToUser) {
+			return nil
+		}
 		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
 			Errorf("failed to record vacancy as send to user: %v", err)
 		return err
@@ -394,34 +410,4 @@ func (v *VacanciesAnalyzer) cancelSearchAnalyze(searchID int) {
 		cancel.(context.CancelFunc)()
 		v.searchContexts.Delete(searchID)
 	}
-}
-
-func createHhSearchParams(search *entities.JobSearch, dateFrom time.Time, page, pageSize int) (*hh.SearchParameters, error) {
-	var err error
-	schedules := lo.Map(search.SchedulesAsArray(), func(s entities.Schedule, _ int) hh.Schedule {
-		schedule, _err := hh.ScheduleFrom(s)
-		if _err != nil {
-			err = _err
-		}
-		return schedule
-	})
-
-	if err != nil {
-		return nil, errors.New("error map schedules")
-	}
-
-	params := hh.SearchParameters{
-		Text:                   search.SearchText,
-		Experience:             hh.Experience(search.Experience),
-		Schedules:              schedules,
-		DateFrom:               dateFrom,
-		AreaID:                 search.RegionID,
-		OrderByPublicationTime: true,
-		Page:                   page,
-		PerPage:                pageSize,
-	}
-	if err = params.Validate(); err != nil {
-		return nil, err
-	}
-	return &params, nil
 }

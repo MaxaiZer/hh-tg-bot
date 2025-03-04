@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"github.com/maxaizer/hh-parser/internal/clients/hh"
 	"github.com/maxaizer/hh-parser/internal/entities"
 	"gorm.io/gorm"
 )
@@ -51,11 +50,10 @@ func (repo *Searches) Update(ctx context.Context, jobSearch entities.JobSearch) 
 	return repo.db.WithContext(ctx).Model(&entities.JobSearch{}).Where("id = ?", jobSearch.ID).Updates(jobSearch).Error
 }
 
-func (repo *Searches) UpdateLastCheckedVacancy(ctx context.Context, id int, vacancy hh.VacancyPreview) error {
+func (repo *Searches) UpdateLastCheckedVacancy(ctx context.Context, id int, vacancy entities.Vacancy) error {
 	return repo.db.WithContext(ctx).Model(&entities.JobSearch{}).Where("id = ?", id).
 		Updates(map[string]any{
-			"last_checked_vacancy_time": vacancy.PublishedAt.Time,
-			//		"last_checked_vacancy_id":   vacancy.ID,
+			"last_checked_vacancy_time": vacancy.PublishedAt.UTC(),
 		}).Error
 }
 

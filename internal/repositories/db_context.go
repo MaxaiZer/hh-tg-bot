@@ -76,6 +76,12 @@ func (c *DbContext) Migrate() error {
 		return fmt.Errorf("failed to create regions in the database: %w", err)
 	}
 
+	if c.DB.Exec("CREATE UNIQUE INDEX idx_user_vacancy_id ON notified_vacancies (user_id, vacancy_id); "+
+		"CREATE UNIQUE INDEX idx_user_vacancy_description ON notified_vacancies (user_id, description_hash);").
+		Error != nil {
+		return fmt.Errorf("failed to create vacancy index: %w", err)
+	}
+
 	return nil
 }
 

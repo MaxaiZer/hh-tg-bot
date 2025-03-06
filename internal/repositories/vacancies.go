@@ -6,6 +6,7 @@ import (
 	"github.com/maxaizer/hh-parser/internal/entities"
 	errs "github.com/maxaizer/hh-parser/internal/errors"
 	"gorm.io/gorm"
+	"strings"
 	"time"
 )
 
@@ -46,7 +47,7 @@ func (v *Vacancies) RecordAsSentToUser(ctx context.Context, vacancy entities.Not
 		DescriptionHash: vacancy.DescriptionHash,
 		LastCheckedAt:   time.Now().UTC(),
 	}).Error
-	if errors.Is(err, gorm.ErrCheckConstraintViolated) {
+	if err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed") {
 		return errs.VacancyAlreadySentToUser
 	}
 

@@ -13,6 +13,7 @@ type BotConfig struct {
 	AIKey                  string        `mapstructure:"ai_key"`
 	AnalysisInterval       time.Duration `mapstructure:"analysis_interval"`
 	HhMaxRequestsPerSecond float32       `mapstructure:"hh_max_requests_per_second"`
+	AiModel                string        `mapstructure:"ai_model"`
 	AiMaxRequestsPerMinute float32       `mapstructure:"ai_max_requests_per_minute"`
 	AiMaxRequestsPerDay    float32       `mapstructure:"ai_max_requests_per_day"`
 }

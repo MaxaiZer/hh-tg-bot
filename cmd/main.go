@@ -46,7 +46,7 @@ func setupLogger(cfg *config.Config) {
 func runAnalyzer(ctx context.Context, cfg *config.Config, vacancies *repositories.Vacancies,
 	searches *repositories.Searches, bus EventBus.Bus) {
 
-	aiClient, err := gemini.NewClient(ctx, cfg.Bot.AIKey, gemini.Model15Flash)
+	aiClient, err := gemini.NewClient(ctx, cfg.Bot.AIKey, cfg.Bot.AiModel)
 	if err != nil {
 		log.Fatalf("can't create AI service: %v", err)
 	}

@@ -7,22 +7,10 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"strings"
 	"time"
-)
-
-type Model string
-
-const (
-	//Model15Flash is fastest multimodal model with great performance for diverse, repetitive tasks
-	Model15Flash Model = "gemini-1.5-flash"
-	//Model15Flash8b is the smallest model for lower intelligence use cases
-	Model15Flash8b Model = "gemini-1.5-flash-8b"
-	//Model15Pro is next-generation model with a breakthrough 2 million context window
-	Model15Pro Model = "gemini-1.5-pro"
-	//Model10Pro is first-generation model offering only text and image reasoning
-	Model10Pro Model = "gemini-1.0-pro"
 )
 
 type Client struct {
@@ -32,21 +20,29 @@ type Client struct {
 	dayRateLimiter    *rate.Limiter
 }
 
-func NewClient(ctx context.Context, apiKey string, model Model) (*Client, error) {
+func NewClient(ctx context.Context, apiKey string, model string) (*Client, error) {
 
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, err
 	}
 
-	genModel := client.GenerativeModel(string(model))
+	genModel := client.GenerativeModel(model)
 
-	service := Client{
+	wrapper := Client{
 		client: client,
 		model:  genModel,
 	}
 
-	return &service, nil
+	exists, err := wrapper.doesModelExist(ctx, model)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, fmt.Errorf("model does not exist: %q", model)
+	}
+
+	return &wrapper, nil
 }
 
 func (c *Client) SetMinuteRateLimit(maxRequestsPerMinute float32) {
@@ -71,6 +67,23 @@ func (c *Client) GenerateResponse(ctx context.Context, text string) (string, err
 	})
 
 	return resp, err
+}
+
+func (c *Client) doesModelExist(ctx context.Context, name string) (bool, error) {
+
+	iter := c.client.ListModels(ctx)
+	for {
+		model, err := iter.Next()
+		if err == iterator.Done {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if strings.TrimPrefix(model.Name, "models/") == name {
+			return true, nil
+		}
+	}
 }
 
 func (c *Client) waitAndGenerateResponse(ctx context.Context, text string) (string, error) {

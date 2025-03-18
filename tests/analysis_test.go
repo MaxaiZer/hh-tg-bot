@@ -30,7 +30,7 @@ func clearDb() {
 	dbCtx.DB.Exec("DELETE from notified_vacancies WHERE TRUE")
 }
 
-func Test_Analysis_DuplicatesAreIgnored(t *testing.T) {
+func Test_Analysis_DuplicatesByDescriptionAreIgnored(t *testing.T) {
 
 	defer clearDb()
 
@@ -41,6 +41,61 @@ func Test_Analysis_DuplicatesAreIgnored(t *testing.T) {
 		}{
 			{result: true, err: nil},
 			{result: true, err: nil},
+		},
+	}
+
+	notifications := 0
+	bus := EventBus.New()
+	bus.Subscribe(events.VacancyFoundTopic, func(found events.VacancyFound) {
+		notifications++
+		t.Log(found)
+	})
+
+	//same description, different id
+	dublicate := vacancy
+	dublicate.ID = "10"
+
+	retrieverMock := mockVacanciesRetriever{
+		vacancies: []entities.Vacancy{vacancy, dublicate},
+	}
+
+	searches := repositories.NewSearchRepository(dbCtx.DB)
+	vacancies := repositories.NewVacanciesRepository(dbCtx.DB)
+
+	analyzer, err := services.NewVacanciesAnalyzer(bus, &aiServiceMock, retrieverMock,
+		searches, vacancies, time.Hour)
+	assert.NoError(t, err)
+
+	analysisComplete := make(chan struct{})
+
+	analyzer.WithAnalysisCompleteCallback(func() {
+		analysisComplete <- struct{}{}
+	})
+
+	go analyzer.Run()
+
+	select {
+	case <-time.After(30 * time.Second):
+		assert.Fail(t, "timed out")
+	case <-analysisComplete:
+	}
+
+	failed, err := vacancies.GetFailedToAnalyze(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, failed)
+	assert.Equal(t, 1, notifications)
+}
+
+func Test_Analysis_DuplicatesByIdAreIgnored(t *testing.T) {
+
+	defer clearDb()
+
+	aiServiceMock := mockAiService{
+		responsesQueue: []struct {
+			result bool
+			err    error
+		}{
+			{result: true, err: nil},
 			{result: true, err: nil},
 		},
 	}
@@ -49,18 +104,15 @@ func Test_Analysis_DuplicatesAreIgnored(t *testing.T) {
 	bus := EventBus.New()
 	bus.Subscribe(events.VacancyFoundTopic, func(found events.VacancyFound) {
 		notifications++
+		t.Log(found)
 	})
 
-	//same description, different id
-	dublicate2 := vacancy
-	dublicate2.ID = "10"
-
 	//description was edited lately
-	dublicate3 := vacancy
-	dublicate3.Description = "раб за ещё меньшие копейки"
+	dublicate := vacancy
+	dublicate.Description = "раб за ещё меньшие копейки"
 
 	retrieverMock := mockVacanciesRetriever{
-		vacancies: []entities.Vacancy{vacancy, dublicate2, dublicate3},
+		vacancies: []entities.Vacancy{vacancy, dublicate},
 	}
 
 	searches := repositories.NewSearchRepository(dbCtx.DB)

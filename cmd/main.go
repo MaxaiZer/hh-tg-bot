@@ -57,13 +57,6 @@ func runAnalyzer(ctx context.Context, cfg *config.Config, vacancies *repositorie
 	hhClient.SetRateLimit(cfg.Bot.HhMaxRequestsPerSecond)
 
 	aiService := services.NewAIService(aiClient)
-
-	cleaner, err := services.NewVacanciesCleaner(vacancies)
-	if err != nil {
-		log.Fatalf("can't create clearer: %v", err)
-	}
-	defer cleaner.StopCron()
-
 	retriever := services.NewHHVacanciesRetriever(hhClient)
 
 	analyzer, err := services.NewVacanciesAnalyzer(bus, aiService, retriever, searches, vacancies, cfg.Bot.AnalysisInterval)
@@ -115,9 +108,15 @@ func main() {
 
 	runAnalyzer(ctx, cfg, vacancies, searches, bus)
 
+	cleaner, err := services.NewVacanciesCleaner(vacancies)
+	if err != nil {
+		log.Fatalf("can't create vacancies cleaner: %v", err)
+	}
+
 	<-ctx.Done()
 
 	log.Info("Shutting down services...")
 	tgbot.Stop()
+	cleaner.Stop()
 	log.Info("Services stopped.")
 }

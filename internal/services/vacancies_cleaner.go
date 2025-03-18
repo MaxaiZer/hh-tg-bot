@@ -33,7 +33,7 @@ func NewVacanciesCleaner(vacancies VacancyCleanupRepository) (*VacanciesCleaner,
 	return vc, nil
 }
 
-func (vc *VacanciesCleaner) StopCron() {
+func (vc *VacanciesCleaner) Stop() {
 	vc.cron.Stop()
 }
 

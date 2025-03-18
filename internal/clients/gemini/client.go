@@ -64,7 +64,7 @@ func (c *Client) GenerateResponse(ctx context.Context, text string) (string, err
 
 	_, _, _ = lo.AttemptWhileWithDelay(3, 2*time.Second, func(i int, _ time.Duration) (error, bool) {
 		if i > 0 {
-			log.Infof("gemini api returned 500 error, retrying...")
+			log.Warn("gemini api returned 500 error, retrying...")
 		}
 		resp, err = c.waitAndGenerateResponse(ctx, text)
 		return err, isInternalError(err)

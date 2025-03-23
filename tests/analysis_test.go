@@ -204,6 +204,7 @@ func Test_RerunAnalysisForFailedVacancy_Success(t *testing.T) {
 	defer clearDb()
 
 	aiServiceMock := mockAiService{
+		responseTime: 100 * time.Millisecond,
 		responsesQueue: []struct {
 			result bool
 			err    error
@@ -252,6 +253,7 @@ func Test_RerunAnalysisForFailedVacancy_FailedAgain(t *testing.T) {
 	defer clearDb()
 
 	aiServiceMock := mockAiService{
+		responseTime: 100 * time.Millisecond,
 		responsesQueue: []struct {
 			result bool
 			err    error

@@ -39,6 +39,7 @@ func (m mockVacanciesRetriever) GetVacancy(ID string) (*entities.Vacancy, error)
 
 type mockAiService struct {
 	mu             sync.Mutex
+	responseTime   time.Duration
 	responsesQueue []struct {
 		result bool
 		err    error
@@ -46,6 +47,7 @@ type mockAiService struct {
 }
 
 func (m *mockAiService) DoesVacancyMatchSearch(ctx context.Context, search entities.JobSearch, vacancy entities.Vacancy) (bool, error) {
+	time.Sleep(m.responseTime)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

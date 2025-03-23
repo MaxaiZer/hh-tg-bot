@@ -10,7 +10,6 @@ import (
 	"github.com/maxaizer/hh-parser/internal/events"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	"github.com/maxaizer/hh-parser/internal/metrics"
-	gocache "github.com/patrickmn/go-cache"
 	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
@@ -56,7 +55,6 @@ type VacanciesAnalyzer struct {
 	vacancies                vacancyRepository
 	retriever                vacanciesRetriever
 	aiService                vacanciesAIService
-	cacheHelper              *cacheHelper
 	lastAnalysisTime         time.Time
 	analysisInterval         time.Duration
 	searchContexts           sync.Map
@@ -72,7 +70,6 @@ func NewVacanciesAnalyzer(bus EventBus.Bus, aiService vacanciesAIService, vacanc
 		vacancies:        vacancyRepo,
 		retriever:        vacanciesRetriever,
 		aiService:        aiService,
-		cacheHelper:      newCacheHelper(gocache.New(30*time.Minute, 1*time.Hour)),
 		analysisInterval: analysisInterval,
 	}
 
@@ -345,7 +342,15 @@ func (v *VacanciesAnalyzer) analyzeVacancies(ctx context.Context, requestChan <-
 
 func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy entities.Vacancy, search entities.JobSearch) error {
 
-	if v.cacheHelper.isCachedForSearch(search.ID, vacancy) { //if vacancy with this description already analyzed for this search
+	vacancyID := createIdForNotifiedVacancy(vacancy, search)
+	wasSent, err := v.vacancies.IsSentToUser(ctx, vacancyID)
+	if err != nil {
+		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
+			Errorf("failed to check if vacancy was sent to user: %v", err)
+		return err
+	}
+
+	if wasSent {
 		return nil
 	}
 
@@ -367,32 +372,13 @@ func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy en
 	} else {
 		metrics.RejectedByAiVacanciesCounter.Inc()
 	}
-
-	v.cacheHelper.cacheForSearch(search.ID, vacancy)
 	return nil
 }
 
 func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy entities.Vacancy, search entities.JobSearch) error {
 
-	descriptionHash := sha256.Sum256([]byte(vacancy.Description))
-	vacancyID := entities.NotifiedVacancyID{
-		UserID:          search.UserID,
-		VacancyID:       vacancy.ID,
-		DescriptionHash: descriptionHash[:],
-	}
-
-	wasSent, err := v.vacancies.IsSentToUser(ctx, vacancyID)
-	if err != nil {
-		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).
-			Errorf("failed to check if vacancy was sent to user: %v", err)
-		return err
-	}
-
-	if wasSent {
-		return nil
-	}
-
-	if err = v.vacancies.RecordAsSentToUser(ctx, vacancyID); err != nil {
+	vacancyID := createIdForNotifiedVacancy(vacancy, search)
+	if err := v.vacancies.RecordAsSentToUser(ctx, vacancyID); err != nil {
 		if errors.Is(err, errs.VacancyAlreadySentToUser) {
 			return nil
 		}
@@ -409,5 +395,14 @@ func (v *VacanciesAnalyzer) cancelSearchAnalyze(searchID int) {
 	if cancel, ok := v.searchContexts.Load(searchID); ok {
 		cancel.(context.CancelFunc)()
 		v.searchContexts.Delete(searchID)
+	}
+}
+
+func createIdForNotifiedVacancy(vacancy entities.Vacancy, search entities.JobSearch) entities.NotifiedVacancyID {
+	descriptionHash := sha256.Sum256([]byte(vacancy.Description))
+	return entities.NotifiedVacancyID{
+		UserID:          search.UserID,
+		VacancyID:       vacancy.ID,
+		DescriptionHash: descriptionHash[:],
 	}
 }

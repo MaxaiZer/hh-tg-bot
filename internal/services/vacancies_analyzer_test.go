@@ -61,6 +61,9 @@ type mockVacancies struct {
 
 func (m *mockVacancies) IsSentToUser(ctx context.Context, vacancy entities.NotifiedVacancyID) (bool, error) {
 	args := m.Called(ctx, vacancy)
+	if f, ok := args.Get(0).(func() (bool, error)); ok {
+		return f()
+	}
 	return args.Bool(0), args.Error(1)
 }
 
@@ -86,7 +89,7 @@ func (m *mockVacancies) RemoveFailedToAnalyze(ctx context.Context, maxAttempts i
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func Test_AnalyzeVacancy_WhenDuplicateInCache_ShouldIgnore(t *testing.T) {
+func Test_AnalyzeVacancy_WhenAlreadySentToUser_ShouldIgnore(t *testing.T) {
 
 	ai := mockAiClient{}
 	ai.On("GenerateResponse", mock.Anything, mock.Anything).Return("да", nil).Once()
@@ -98,8 +101,16 @@ func Test_AnalyzeVacancy_WhenDuplicateInCache_ShouldIgnore(t *testing.T) {
 	search := entities.JobSearch{ID: 1}
 
 	vacancies := &mockVacancies{}
-	vacancies.On("IsSentToUser", mock.Anything, mock.Anything).Return(false, nil)
-	vacancies.On("RecordAsSentToUser", mock.Anything, mock.Anything).Return(nil)
+	firstVacancyAnalyzed := false
+	vacancies.On("IsSentToUser", mock.Anything, mock.Anything).
+		Return(func() (bool, error) {
+			return firstVacancyAnalyzed, nil
+		})
+	vacancies.On("RecordAsSentToUser", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			firstVacancyAnalyzed = true
+		}).
+		Return(nil)
 
 	vacancy := entities.Vacancy{
 		ID:          "1",

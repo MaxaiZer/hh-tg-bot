@@ -86,6 +86,63 @@ func Test_Analysis_DuplicatesByDescriptionAreIgnored(t *testing.T) {
 	assert.Equal(t, 1, notifications)
 }
 
+func Test_Analysis_DuplicatesByDescription_HtmlTagsAreIgnored(t *testing.T) {
+
+	defer clearDb()
+
+	aiServiceMock := mockAiService{
+		responsesQueue: []struct {
+			result bool
+			err    error
+		}{
+			{result: true, err: nil},
+			{result: true, err: nil},
+		},
+	}
+
+	notifications := 0
+	bus := EventBus.New()
+	bus.Subscribe(events.VacancyFoundTopic, func(found events.VacancyFound) {
+		notifications++
+		t.Log(found)
+	})
+
+	//same description with added html tags + extra spaces, different id
+	duplicate := vacancy
+	duplicate.ID = "10"
+	duplicate.Description = "раб  за      копейки<li></li><strong></strong><p></p><ul></ul><em></em>"
+
+	retrieverMock := mockVacanciesRetriever{
+		vacancies: []entities.Vacancy{vacancy, duplicate},
+	}
+
+	searches := repositories.NewSearchRepository(dbCtx.DB)
+	vacancies := repositories.NewVacanciesRepository(dbCtx.DB)
+
+	analyzer, err := services.NewVacanciesAnalyzer(bus, &aiServiceMock, retrieverMock,
+		searches, vacancies, time.Hour)
+	assert.NoError(t, err)
+
+	analysisComplete := make(chan struct{})
+
+	analyzer.WithAnalysisCompleteCallback(func() {
+		analysisComplete <- struct{}{}
+	})
+
+	go analyzer.Run()
+
+	select {
+	case <-time.After(30 * time.Second):
+		assert.Fail(t, "timed out")
+	case <-analysisComplete:
+	}
+
+	failed, err := vacancies.GetFailedToAnalyze(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, failed)
+	assert.Equal(t, 1, notifications)
+}
+
 func Test_Analysis_DuplicatesByIdAreIgnored(t *testing.T) {
 
 	defer clearDb()
@@ -108,11 +165,11 @@ func Test_Analysis_DuplicatesByIdAreIgnored(t *testing.T) {
 	})
 
 	//description was edited lately
-	dublicate := vacancy
-	dublicate.Description = "раб за ещё меньшие копейки"
+	duplicate := vacancy
+	duplicate.Description = "раб за ещё меньшие копейки"
 
 	retrieverMock := mockVacanciesRetriever{
-		vacancies: []entities.Vacancy{vacancy, dublicate},
+		vacancies: []entities.Vacancy{vacancy, duplicate},
 	}
 
 	searches := repositories.NewSearchRepository(dbCtx.DB)

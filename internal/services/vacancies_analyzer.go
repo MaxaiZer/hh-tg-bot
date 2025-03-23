@@ -11,6 +11,7 @@ import (
 	"github.com/maxaizer/hh-parser/internal/logger"
 	"github.com/maxaizer/hh-parser/internal/metrics"
 	log "github.com/sirupsen/logrus"
+	"regexp"
 	"sync"
 	"time"
 )
@@ -342,6 +343,7 @@ func (v *VacanciesAnalyzer) analyzeVacancies(ctx context.Context, requestChan <-
 
 func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy entities.Vacancy, search entities.JobSearch) error {
 
+	vacancy.Description = removeExtraSpaces(removeHtmlTags(vacancy.Description))
 	vacancyID := createIdForNotifiedVacancy(vacancy, search)
 	wasSent, err := v.vacancies.IsSentToUser(ctx, vacancyID)
 	if err != nil {
@@ -399,10 +401,21 @@ func (v *VacanciesAnalyzer) cancelSearchAnalyze(searchID int) {
 }
 
 func createIdForNotifiedVacancy(vacancy entities.Vacancy, search entities.JobSearch) entities.NotifiedVacancyID {
+
 	descriptionHash := sha256.Sum256([]byte(vacancy.Description))
 	return entities.NotifiedVacancyID{
 		UserID:          search.UserID,
 		VacancyID:       vacancy.ID,
 		DescriptionHash: descriptionHash[:],
 	}
+}
+
+func removeHtmlTags(input string) string {
+	re := regexp.MustCompile("<[^>]*>")
+	return re.ReplaceAllString(input, "")
+}
+
+func removeExtraSpaces(input string) string {
+	re := regexp.MustCompile(`\s{2,}`)
+	return re.ReplaceAllString(input, " ")
 }

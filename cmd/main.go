@@ -108,7 +108,7 @@ func main() {
 
 	runAnalyzer(ctx, cfg, vacancies, searches, bus)
 
-	cleaner, err := services.NewVacanciesCleaner(vacancies)
+	cleaner, err := services.NewVacanciesCleaner(vacancies, cfg.Bot.VacancyExpirationInDays)
 	if err != nil {
 		log.Fatalf("can't create vacancies cleaner: %v", err)
 	}

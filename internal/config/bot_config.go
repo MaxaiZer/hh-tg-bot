@@ -9,13 +9,14 @@ import (
 )
 
 type BotConfig struct {
-	Token                  string        `mapstructure:"token"`
-	AIKey                  string        `mapstructure:"ai_key"`
-	AnalysisInterval       time.Duration `mapstructure:"analysis_interval"`
-	HhMaxRequestsPerSecond float32       `mapstructure:"hh_max_requests_per_second"`
-	AiModel                string        `mapstructure:"ai_model"`
-	AiMaxRequestsPerMinute float32       `mapstructure:"ai_max_requests_per_minute"`
-	AiMaxRequestsPerDay    float32       `mapstructure:"ai_max_requests_per_day"`
+	Token                   string        `mapstructure:"token"`
+	AIKey                   string        `mapstructure:"ai_key"`
+	AnalysisInterval        time.Duration `mapstructure:"analysis_interval"`
+	VacancyExpirationInDays int           `mapstructure:"vacancy_expiration_days"`
+	HhMaxRequestsPerSecond  float32       `mapstructure:"hh_max_requests_per_second"`
+	AiModel                 string        `mapstructure:"ai_model"`
+	AiMaxRequestsPerMinute  float32       `mapstructure:"ai_max_requests_per_minute"`
+	AiMaxRequestsPerDay     float32       `mapstructure:"ai_max_requests_per_day"`
 }
 
 func (config BotConfig) validate() error {

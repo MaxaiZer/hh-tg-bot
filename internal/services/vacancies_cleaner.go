@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	log "github.com/sirupsen/logrus"
 	"time"
@@ -17,11 +18,16 @@ type VacanciesCleaner struct {
 	expirationTimeInDays int
 }
 
-func NewVacanciesCleaner(vacancies VacancyCleanupRepository) (*VacanciesCleaner, error) {
+func NewVacanciesCleaner(vacancies VacancyCleanupRepository, expirationInDays int) (*VacanciesCleaner, error) {
+
+	if expirationInDays <= 0 {
+		return nil, errors.New("expiration in days must be greater than zero")
+	}
+
 	vc := &VacanciesCleaner{
 		vacancies:            vacancies,
 		cron:                 cron.New(),
-		expirationTimeInDays: 14,
+		expirationTimeInDays: expirationInDays,
 	}
 
 	_, err := vc.cron.AddFunc("0 0 * * *", vc.cleanOldVacancies)
@@ -30,6 +36,7 @@ func NewVacanciesCleaner(vacancies VacancyCleanupRepository) (*VacanciesCleaner,
 	}
 
 	vc.cron.Start()
+	log.Infof("vacancies cleaner started, expiration in days: %d", vc.expirationTimeInDays)
 	return vc, nil
 }
 

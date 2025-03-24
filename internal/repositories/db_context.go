@@ -55,10 +55,22 @@ func (c *DbContext) Migrate() error {
 		return fmt.Errorf("failed to count regions: %w", err)
 	}
 
-	if regionsCount != 0 {
-		return nil
+	if regionsCount == 0 {
+		if err = c.PopulateRegions(); err != nil {
+			return fmt.Errorf("failed to populate regions: %w", err)
+		}
 	}
 
+	if err = c.DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_vacancy_id ON notified_vacancies (user_id, vacancy_id); " +
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_user_vacancy_description ON notified_vacancies (user_id, description_hash);").
+		Error; err != nil {
+		return fmt.Errorf("failed to create vacancy index: %w", err)
+	}
+
+	return nil
+}
+
+func (c *DbContext) PopulateRegions() error {
 	client := hh.NewClient()
 	areas, err := client.GetAreas()
 	if err != nil {
@@ -75,13 +87,6 @@ func (c *DbContext) Migrate() error {
 	if err = c.DB.Create(regions).Error; err != nil {
 		return fmt.Errorf("failed to create regions in the database: %w", err)
 	}
-
-	if err = c.DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_vacancy_id ON notified_vacancies (user_id, vacancy_id); " +
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_user_vacancy_description ON notified_vacancies (user_id, description_hash);").
-		Error; err != nil {
-		return fmt.Errorf("failed to create vacancy index: %w", err)
-	}
-
 	return nil
 }
 

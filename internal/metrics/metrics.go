@@ -8,6 +8,14 @@ import (
 )
 
 var (
+	ActiveSearches = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "bot_active_searches",
+		Help: "Current number of vacancies searches.",
+	})
+	ActiveUsers = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "bot_active_users",
+		Help: "Current number of active users (with searches).",
+	})
 	ErrorsCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "bot_errors_total",
@@ -15,25 +23,22 @@ var (
 		},
 		[]string{"type"},
 	)
-	AnalysisDuration = prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    "bot_vacancies_analysis_duration_seconds",
-			Help:    "Duration of each vacancies analysis in seconds.",
-			Buckets: []float64{60, 300, 900, 1800, 3600},
+	AnalysisDuration = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "bot_vacancies_analysis_duration_seconds",
+			Help: "Duration of each vacancies analysis in seconds.",
 		},
-	)
-	AnalysisStepDuration = prometheus.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Name:       "bot_vacancy_analysis_step_duration_seconds",
-			Help:       "Duration of each step in the vacancy analysis process.",
-			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		},
-		[]string{"step"},
 	)
 	HandledVacanciesCounter = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "bot_vacancies_analyzed_total",
 			Help: "Total number of handled vacancies.",
+		},
+	)
+	ApprovedByAiVacanciesCounter = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "bot_vacancies_ai_approved_total",
+			Help: "Total number of vacancies that were approved by AI.",
 		},
 	)
 	RejectedByAiVacanciesCounter = prometheus.NewCounter(
@@ -46,11 +51,13 @@ var (
 
 func StartMetricsServer() {
 
+	prometheus.MustRegister(ActiveSearches)
+	prometheus.MustRegister(ActiveUsers)
 	prometheus.MustRegister(ErrorsCounter)
-	prometheus.MustRegister(HandledVacanciesCounter)
-	prometheus.MustRegister(RejectedByAiVacanciesCounter)
 	prometheus.MustRegister(AnalysisDuration)
-	prometheus.MustRegister(AnalysisStepDuration)
+	prometheus.MustRegister(HandledVacanciesCounter)
+	prometheus.MustRegister(ApprovedByAiVacanciesCounter)
+	prometheus.MustRegister(RejectedByAiVacanciesCounter)
 
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {

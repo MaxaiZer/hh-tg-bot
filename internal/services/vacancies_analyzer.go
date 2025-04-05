@@ -103,7 +103,7 @@ func (v *VacanciesAnalyzer) Run() {
 		v.runAnalysis()
 
 		executionTime := time.Since(startTime)
-		metrics.AnalysisDuration.Observe(executionTime.Seconds())
+		metrics.AnalysisDuration.Add(executionTime.Seconds())
 		log.Infof("analysis ended after %v", executionTime)
 
 		v.rerunAnalysisForFailedVacancies()
@@ -142,6 +142,8 @@ func (v *VacanciesAnalyzer) runAnalysis() {
 	}()
 
 	var pageSize, analyzedTotal = 20, 0
+	users := make(map[int64]struct{})
+
 	for page := 0; ; page++ {
 
 		jobSearches, err := v.searches.Get(context.Background(), pageSize, page*pageSize)
@@ -155,6 +157,7 @@ func (v *VacanciesAnalyzer) runAnalysis() {
 
 		var wg sync.WaitGroup
 		for _, jobSearch := range jobSearches {
+			users[jobSearch.UserID] = struct{}{}
 			v.runAnalysisForUserSearch(&wg, errChan, jobSearch)
 		}
 
@@ -162,6 +165,8 @@ func (v *VacanciesAnalyzer) runAnalysis() {
 		analyzedTotal += len(jobSearches)
 	}
 
+	metrics.ActiveSearches.Set(float64(analyzedTotal))
+	metrics.ActiveUsers.Set(float64(len(users)))
 	log.Infof("handled %v user searches", analyzedTotal)
 }
 
@@ -356,9 +361,7 @@ func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy en
 		return nil
 	}
 
-	start := time.Now()
 	matched, err := v.aiService.DoesVacancyMatchSearch(ctx, search, vacancy)
-	metrics.AnalysisStepDuration.WithLabelValues("ai_analysis").Observe(time.Since(start).Seconds())
 
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -371,6 +374,7 @@ func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy en
 		if err = v.handleApproveByAI(ctx, vacancy, search); err != nil {
 			return err
 		}
+		metrics.ApprovedByAiVacanciesCounter.Inc()
 	} else {
 		metrics.RejectedByAiVacanciesCounter.Inc()
 	}

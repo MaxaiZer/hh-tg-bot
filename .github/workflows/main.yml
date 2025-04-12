@@ -77,18 +77,18 @@ jobs:
           host: ${{ secrets.SERVER }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: "docker-compose.yml,prometheus.yml,configs/**"
+          source: "docker-compose.yml,prometheus.yml,promtail.yml,configs/**"
           target: "${{ env.DIR }}"
 
       - name: Create .env
         uses: SpicyPizza/create-envfile@v2.0
         with:
+          envkey_ENV: prod
           envkey_TOKEN: ${{ secrets.TOKEN }}
           envkey_AI_KEY: ${{ secrets.AI_KEY }}
           envkey_LOKI_URL: ${{ secrets.LOKI_URL }}
           envkey_LOKI_USER: ${{ secrets.LOKI_USER }}
           envkey_LOKI_PASSWORD: ${{ secrets.LOKI_PASSWORD }}
-          envkey_APP_NAME: hh-tg-bot
           fail_on_empty: true
 
       - name: Upload .env

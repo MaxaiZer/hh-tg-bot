@@ -35,11 +35,7 @@ func setupLogger(cfg *config.Config) {
 		level = log.InfoLevel
 	}
 	logger.Setup(logger.Config{
-		LogLevel:     level,
-		AppName:      cfg.Logger.AppName,
-		LokiURL:      cfg.Logger.LokiURL,
-		LokiUser:     cfg.Logger.LokiUser,
-		LokiPassword: cfg.Logger.LokiPassword,
+		LogLevel: level,
 	})
 }
 

@@ -3,13 +3,11 @@ package logger
 import (
 	"context"
 	"fmt"
-	"github.com/maxaizer/hh-parser/pkg/loki"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 )
 
 const ErrorTypeField = "error_type"
@@ -26,11 +24,7 @@ var ctx context.Context
 var cancelFunc context.CancelFunc
 
 type Config struct {
-	LogLevel     log.Level
-	AppName      string
-	LokiURL      string
-	LokiUser     string
-	LokiPassword string
+	LogLevel log.Level
 }
 
 func Setup(cfg Config) {
@@ -62,21 +56,9 @@ func Setup(cfg Config) {
 	}
 	log.SetFormatter(customFormatter)
 	log.SetReportCaller(true)
+	log.SetLevel(cfg.LogLevel)
 
 	addPrometheusHook()
-	err = addLokiHook(ctx, loki.Config{
-		Url:          cfg.LokiURL,
-		Username:     cfg.LokiUser,
-		Password:     cfg.LokiPassword,
-		BatchMaxSize: 1000,
-		BatchMaxWait: 10 * time.Second,
-		Labels:       map[string]string{"app": cfg.AppName},
-	}, cfg.LogLevel)
-	if err != nil {
-		log.Fatalf("Failed to add loki hook: %v", err)
-	}
-
-	log.SetLevel(cfg.LogLevel)
 }
 
 func Cleanup() {

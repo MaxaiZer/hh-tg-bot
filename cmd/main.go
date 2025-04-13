@@ -57,6 +57,7 @@ func main() {
 	defer stop()
 
 	cfg := config.Get()
+	log.Infof("current environment: %s", cfg.Env)
 
 	setupLogger(cfg)
 	defer logger.Cleanup()

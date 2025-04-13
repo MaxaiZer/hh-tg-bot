@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
-	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	log "github.com/sirupsen/logrus"
 	"strings"
 )
@@ -20,7 +20,7 @@ func NewAIService(aiClient aiClient) *AIService {
 	return &AIService{aiClient: aiClient}
 }
 
-func (a *AIService) DoesVacancyMatchSearch(ctx context.Context, search entities.JobSearch, vacancy entities.Vacancy) (bool, error) {
+func (a *AIService) DoesVacancyMatchSearch(ctx context.Context, search models.JobSearch, vacancy models.Vacancy) (bool, error) {
 	response, err := a.aiClient.GenerateResponse(ctx, a.vacancyMatchSearchRequest(search, vacancy))
 	if err != nil {
 		return false, err
@@ -38,7 +38,7 @@ func (a *AIService) DoesVacancyMatchSearch(ctx context.Context, search entities.
 	}
 }
 
-func (a *AIService) vacancyMatchSearchRequest(search entities.JobSearch, vacancy entities.Vacancy) (request string) {
+func (a *AIService) vacancyMatchSearchRequest(search models.JobSearch, vacancy models.Vacancy) (request string) {
 
 	request = "Название вакансии: " + vacancy.Name
 	request += " Описание: " + vacancy.Description

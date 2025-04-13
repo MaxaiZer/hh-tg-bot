@@ -1,4 +1,4 @@
-package entities
+package models
 
 type ArbitraryData struct {
 	ID    string `gorm:"primaryKey"`

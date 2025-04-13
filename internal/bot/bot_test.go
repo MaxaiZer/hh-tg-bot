@@ -7,18 +7,18 @@ import (
 	"github.com/asaskevich/EventBus"
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/maxaizer/hh-parser/internal/clients/hh"
-	"github.com/maxaizer/hh-parser/internal/entities"
-	"github.com/maxaizer/hh-parser/internal/events"
+	events2 "github.com/maxaizer/hh-parser/internal/domain/events"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
 )
 
 type mockSearchRepo struct {
-	Searches []entities.JobSearch
+	Searches []models.JobSearch
 }
 
-func (m *mockSearchRepo) Update(_ context.Context, search entities.JobSearch) error {
+func (m *mockSearchRepo) Update(_ context.Context, search models.JobSearch) error {
 	for i := 0; i < len(m.Searches); i++ {
 		if m.Searches[i].ID == search.ID {
 			m.Searches[i] = search
@@ -28,12 +28,12 @@ func (m *mockSearchRepo) Update(_ context.Context, search entities.JobSearch) er
 	return errors.New("not found")
 }
 
-func (m *mockSearchRepo) Get(_ context.Context, _ int, _ int) ([]entities.JobSearch, error) {
+func (m *mockSearchRepo) Get(_ context.Context, _ int, _ int) ([]models.JobSearch, error) {
 	return m.Searches, nil
 }
 
-func (m *mockSearchRepo) GetByUser(_ context.Context, userID int64) ([]entities.JobSearch, error) {
-	result := make([]entities.JobSearch, 0)
+func (m *mockSearchRepo) GetByUser(_ context.Context, userID int64) ([]models.JobSearch, error) {
+	result := make([]models.JobSearch, 0)
 	for i := 0; i < len(m.Searches); i++ {
 		if m.Searches[i].UserID == userID {
 			result = append(result, m.Searches[i])
@@ -42,7 +42,7 @@ func (m *mockSearchRepo) GetByUser(_ context.Context, userID int64) ([]entities.
 	return result, nil
 }
 
-func (m *mockSearchRepo) GetByID(_ context.Context, ID int64) (*entities.JobSearch, error) {
+func (m *mockSearchRepo) GetByID(_ context.Context, ID int64) (*models.JobSearch, error) {
 	for i := 0; i < len(m.Searches); i++ {
 		if m.Searches[i].ID == int(ID) {
 			return &m.Searches[i], nil
@@ -51,7 +51,7 @@ func (m *mockSearchRepo) GetByID(_ context.Context, ID int64) (*entities.JobSear
 	return nil, fmt.Errorf("not found")
 }
 
-func (m *mockSearchRepo) Add(_ context.Context, search entities.JobSearch) error {
+func (m *mockSearchRepo) Add(_ context.Context, search models.JobSearch) error {
 	m.Searches = append(m.Searches, search)
 	return nil
 }
@@ -79,12 +79,12 @@ func (m mockApi) Send(chattable botApi.Chattable) (botApi.Message, error) {
 }
 
 type mockRegionRepo struct {
-	Regions []entities.Region
+	Regions []models.Region
 }
 
 func (m *mockRegionRepo) GetIdByName(_ context.Context, name string) (string, error) {
 	for _, region := range m.Regions {
-		if region.NormalizedName == entities.NormalizeRegionName(name) {
+		if region.NormalizedName == models.NormalizeRegionName(name) {
 			return region.ID, nil
 		}
 	}
@@ -101,9 +101,9 @@ func Test_AddSearchCmd_WhenValidData_ShouldBeSuccessful(t *testing.T) {
 
 	assert := assert.New(t)
 
-	region := entities.NewRegion("0", "Москва")
+	region := models.NewRegion("0", "Москва")
 	mockSearches := &mockSearchRepo{}
-	mockRegions := &mockRegionRepo{Regions: []entities.Region{region}}
+	mockRegions := &mockRegionRepo{Regions: []models.Region{region}}
 	finished := false
 
 	keywords := "C#"
@@ -122,7 +122,7 @@ func Test_AddSearchCmd_WhenValidData_ShouldBeSuccessful(t *testing.T) {
 	assert.True(len(mockSearches.Searches) == 1)
 	assert.Equal(keywords, mockSearches.Searches[0].SearchText)
 	assert.Equal(region.ID, mockSearches.Searches[0].RegionID)
-	assert.Equal(entities.NoExperience, mockSearches.Searches[0].Experience)
+	assert.Equal(models.NoExperience, mockSearches.Searches[0].Experience)
 	assert.Equal(wish, mockSearches.Searches[0].UserWish)
 	assert.Equal(initialSearchPeriod, mockSearches.Searches[0].InitialSearchPeriod)
 }
@@ -131,9 +131,9 @@ func Test_AddSearchCmd_WhenInvalidInput_ShouldWaitForValid(t *testing.T) {
 
 	assert := assert.New(t)
 
-	region := entities.NewRegion("0", "Москва")
+	region := models.NewRegion("0", "Москва")
 	mockSearches := &mockSearchRepo{}
-	mockRegions := &mockRegionRepo{Regions: []entities.Region{region}}
+	mockRegions := &mockRegionRepo{Regions: []models.Region{region}}
 	finished := false
 
 	keywords := "C#"
@@ -157,7 +157,7 @@ func Test_AddSearchCmd_WhenInvalidInput_ShouldWaitForValid(t *testing.T) {
 	assert.True(len(mockSearches.Searches) == 1)
 	assert.Equal(keywords, mockSearches.Searches[0].SearchText)
 	assert.Equal(region.ID, mockSearches.Searches[0].RegionID)
-	assert.Equal(entities.NoExperience, mockSearches.Searches[0].Experience)
+	assert.Equal(models.NoExperience, mockSearches.Searches[0].Experience)
 	assert.Equal(wish, mockSearches.Searches[0].UserWish)
 	assert.Equal(initialSearchPeriod, mockSearches.Searches[0].InitialSearchPeriod)
 }
@@ -166,11 +166,11 @@ func Test_RemoveSearchCmd_WhenValidData_ShouldBeSuccessful(t *testing.T) {
 
 	assert := assert.New(t)
 
-	search := entities.JobSearch{ID: 0, UserID: 0}
-	mockSearches := &mockSearchRepo{Searches: []entities.JobSearch{search}}
+	search := models.JobSearch{ID: 0, UserID: 0}
+	mockSearches := &mockSearchRepo{Searches: []models.JobSearch{search}}
 	eventPublished := false
 	mockBus := EventBus.New()
-	_ = mockBus.Subscribe(events.SearchDeletedTopic, func(event events.SearchDeleted) { eventPublished = true })
+	_ = mockBus.Subscribe(events2.SearchDeletedTopic, func(event events2.SearchDeleted) { eventPublished = true })
 	finished := false
 
 	cmd, err := newRemoveSearchCommand(&mockApi{}, search.UserID, mockBus, mockSearches)
@@ -189,8 +189,8 @@ func Test_RemoveSearchCmd_WhenInvalidInput_ShouldWaitForValid(t *testing.T) {
 
 	assert := assert.New(t)
 
-	search := entities.JobSearch{ID: 0, UserID: 0}
-	mockSearches := &mockSearchRepo{Searches: []entities.JobSearch{search}}
+	search := models.JobSearch{ID: 0, UserID: 0}
+	mockSearches := &mockSearchRepo{Searches: []models.JobSearch{search}}
 	finished := false
 
 	cmd, err := newRemoveSearchCommand(&mockApi{}, search.UserID, EventBus.New(), mockSearches)
@@ -209,11 +209,11 @@ func Test_EditSearchCmd_WhenValidData_ShouldBeSuccessful(t *testing.T) {
 
 	assert := assert.New(t)
 
-	search := entities.JobSearch{ID: 0, UserID: 0}
-	mockSearches := &mockSearchRepo{Searches: []entities.JobSearch{search}}
+	search := models.JobSearch{ID: 0, UserID: 0}
+	mockSearches := &mockSearchRepo{Searches: []models.JobSearch{search}}
 	eventPublished := false
 	mockBus := EventBus.New()
-	_ = mockBus.Subscribe(events.SearchEditedTopic, func(event events.SearchEdited) { eventPublished = true })
+	_ = mockBus.Subscribe(events2.SearchEditedTopic, func(event events2.SearchEdited) { eventPublished = true })
 	finished := false
 
 	cmd, err := newEditSearchCommand(&mockApi{}, search.UserID, mockBus, mockSearches)
@@ -243,8 +243,8 @@ func Test_EditSearchCmd_WhenInvalidInput_ShouldWaitForValid(t *testing.T) {
 
 	assert := assert.New(t)
 
-	search := entities.JobSearch{ID: 0, UserID: 0}
-	mockSearches := &mockSearchRepo{Searches: []entities.JobSearch{search}}
+	search := models.JobSearch{ID: 0, UserID: 0}
+	mockSearches := &mockSearchRepo{Searches: []models.JobSearch{search}}
 	finished := false
 
 	cmd, err := newEditSearchCommand(&mockApi{}, search.UserID, EventBus.New(), mockSearches)

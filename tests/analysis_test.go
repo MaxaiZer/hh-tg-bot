@@ -3,8 +3,8 @@ package tests
 import (
 	"context"
 	"github.com/asaskevich/EventBus"
-	"github.com/maxaizer/hh-parser/internal/entities"
-	"github.com/maxaizer/hh-parser/internal/events"
+	"github.com/maxaizer/hh-parser/internal/domain/events"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/maxaizer/hh-parser/internal/repositories"
 	"github.com/maxaizer/hh-parser/internal/services"
 	"github.com/pkg/errors"
@@ -13,10 +13,10 @@ import (
 	"time"
 )
 
-var search = entities.NewJobSearch(0, "Golang", "0", entities.NoExperience,
-	[]entities.Schedule{entities.Remote}, "хочу питсы", 2)
+var search = models.NewJobSearch(0, "Golang", "0", models.NoExperience,
+	[]models.Schedule{models.Remote}, "хочу питсы", 2)
 
-var vacancy = entities.Vacancy{
+var vacancy = models.Vacancy{
 	ID:          "0",
 	Url:         "hh.ru/vacancies/0",
 	Name:        "Golang developer",
@@ -56,7 +56,7 @@ func Test_Analysis_DuplicatesByDescriptionAreIgnored(t *testing.T) {
 	dublicate.ID = "10"
 
 	retrieverMock := mockVacanciesRetriever{
-		vacancies: []entities.Vacancy{vacancy, dublicate},
+		vacancies: []models.Vacancy{vacancy, dublicate},
 	}
 
 	searches := repositories.NewSearchRepository(dbCtx.DB)
@@ -113,7 +113,7 @@ func Test_Analysis_DuplicatesByDescription_HtmlTagsAreIgnored(t *testing.T) {
 	duplicate.Description = "раб  за      копейки<li></li><strong></strong><p></p><ul></ul><em></em>"
 
 	retrieverMock := mockVacanciesRetriever{
-		vacancies: []entities.Vacancy{vacancy, duplicate},
+		vacancies: []models.Vacancy{vacancy, duplicate},
 	}
 
 	searches := repositories.NewSearchRepository(dbCtx.DB)
@@ -169,7 +169,7 @@ func Test_Analysis_DuplicatesByIdAreIgnored(t *testing.T) {
 	duplicate.Description = "раб за ещё меньшие копейки"
 
 	retrieverMock := mockVacanciesRetriever{
-		vacancies: []entities.Vacancy{vacancy, duplicate},
+		vacancies: []models.Vacancy{vacancy, duplicate},
 	}
 
 	searches := repositories.NewSearchRepository(dbCtx.DB)
@@ -214,7 +214,7 @@ func Test_RerunAnalysisForFailedVacancy_Success(t *testing.T) {
 		},
 	}
 	retrieverMock := mockVacanciesRetriever{
-		vacancies: []entities.Vacancy{vacancy},
+		vacancies: []models.Vacancy{vacancy},
 	}
 
 	searches := repositories.NewSearchRepository(dbCtx.DB)
@@ -263,7 +263,7 @@ func Test_RerunAnalysisForFailedVacancy_FailedAgain(t *testing.T) {
 		},
 	}
 	retrieverMock := mockVacanciesRetriever{
-		vacancies: []entities.Vacancy{vacancy},
+		vacancies: []models.Vacancy{vacancy},
 	}
 
 	searches := repositories.NewSearchRepository(dbCtx.DB)

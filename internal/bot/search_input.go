@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -16,11 +16,11 @@ var errorNoUserSearches = errors.New("user has no searches")
 type searchInput struct {
 	chatID       int64
 	searches     searchRepository
-	userSearches []entities.JobSearch
-	onFinish     func(search *entities.JobSearch)
+	userSearches []models.JobSearch
+	onFinish     func(search *models.JobSearch)
 }
 
-func newSearchInput(chatID int64, searchRepo searchRepository, onFinish func(search *entities.JobSearch)) (*searchInput, error) {
+func newSearchInput(chatID int64, searchRepo searchRepository, onFinish func(search *models.JobSearch)) (*searchInput, error) {
 	userSearches, err := searchRepo.GetByUser(context.Background(), chatID)
 	if err != nil {
 		log.WithField(logger.ErrorTypeField, logger.ErrorTypeDb).Error(err)
@@ -57,7 +57,7 @@ func (s *searchInput) HandleInput(input string) botApi.Chattable {
 	return nil
 }
 
-func (s *searchInput) searchesToText(searches []entities.JobSearch) (text string) {
+func (s *searchInput) searchesToText(searches []models.JobSearch) (text string) {
 	for i := 0; i < len(searches); i++ {
 
 		text += strconv.Itoa(i+1) + ": \"" + searches[i].SearchText + "\""
@@ -94,28 +94,28 @@ func (s *searchInput) searchesToText(searches []entities.JobSearch) (text string
 	return text
 }
 
-func scheduleToText(schedule entities.Schedule) (string, error) {
+func scheduleToText(schedule models.Schedule) (string, error) {
 	switch schedule {
-	case entities.FullDay:
+	case models.FullDay:
 		return "полный день", nil
-	case entities.Flexible:
+	case models.Flexible:
 		return "гибкий график", nil
-	case entities.Remote:
+	case models.Remote:
 		return "удалённая работа", nil
 	default:
 		return "", fmt.Errorf("invalid schedule: %s", schedule)
 	}
 }
 
-func experienceToText(experience entities.Experience) (string, error) {
+func experienceToText(experience models.Experience) (string, error) {
 	switch experience {
-	case entities.NoExperience:
+	case models.NoExperience:
 		return "без опыта", nil
-	case entities.Between1and3:
+	case models.Between1and3:
 		return "опыт от 1 до 3 лет", nil
-	case entities.Between3and6:
+	case models.Between3and6:
 		return "опыт от 3 до 6 лет", nil
-	case entities.MoreThan6:
+	case models.MoreThan6:
 		return "опыт от 6 лет", nil
 	default:
 		return "", fmt.Errorf("invalid experience: %s", experience)

@@ -2,7 +2,7 @@ package hh
 
 import (
 	"fmt"
-	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/pkg/errors"
 	"net/url"
 	"strconv"
@@ -20,15 +20,15 @@ const (
 	MoreThan6    Experience = "moreThan6"
 )
 
-func ExperienceFrom(experience entities.Experience) (Experience, error) {
+func ExperienceFrom(experience models.Experience) (Experience, error) {
 	switch experience {
-	case entities.NoExperience:
+	case models.NoExperience:
 		return NoExperience, nil
-	case entities.Between1and3:
+	case models.Between1and3:
 		return Between1and3, nil
-	case entities.Between3and6:
+	case models.Between3and6:
 		return Between3and6, nil
-	case entities.MoreThan6:
+	case models.MoreThan6:
 		return MoreThan6, nil
 	default:
 		return "", fmt.Errorf("invalid experience type: %v", experience)
@@ -43,13 +43,13 @@ const (
 	Remote   Schedule = "remote"
 )
 
-func ScheduleFrom(schedule entities.Schedule) (Schedule, error) {
+func ScheduleFrom(schedule models.Schedule) (Schedule, error) {
 	switch schedule {
-	case entities.FullDay:
+	case models.FullDay:
 		return FullDay, nil
-	case entities.Flexible:
+	case models.Flexible:
 		return Flexible, nil
-	case entities.Remote:
+	case models.Remote:
 		return Remote, nil
 	default:
 		return "", fmt.Errorf("invalid schedule type: %v", schedule)

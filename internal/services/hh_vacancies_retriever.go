@@ -2,7 +2,7 @@ package services
 
 import (
 	"github.com/maxaizer/hh-parser/internal/clients/hh"
-	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -17,13 +17,13 @@ func NewHHVacanciesRetriever(client *hh.Client) *HHVacanciesRetriever {
 	return &HHVacanciesRetriever{client: client}
 }
 
-func (r *HHVacanciesRetriever) GetVacancies(search *entities.JobSearch, dateFrom time.Time, page, pageSize int) ([]entities.Vacancy, error) {
+func (r *HHVacanciesRetriever) GetVacancies(search *models.JobSearch, dateFrom time.Time, page, pageSize int) ([]models.Vacancy, error) {
 
 	params, err := createHhSearchParams(search, dateFrom, page, pageSize)
 	if err != nil {
 		if errors.Is(err, hh.ErrTooDeepPagination) {
 			log.Warningf("too deep pagination for search with id %d, page: %d, per page: %d", search.ID, page, pageSize)
-			return []entities.Vacancy{}, nil
+			return []models.Vacancy{}, nil
 		}
 		log.Error(err)
 		return nil, err
@@ -34,7 +34,7 @@ func (r *HHVacanciesRetriever) GetVacancies(search *entities.JobSearch, dateFrom
 		return nil, err
 	}
 
-	var vacancies []entities.Vacancy
+	var vacancies []models.Vacancy
 	for _, preview := range previews {
 		vacancy, err := r.GetVacancy(preview.ID)
 		if err != nil {
@@ -46,7 +46,7 @@ func (r *HHVacanciesRetriever) GetVacancies(search *entities.JobSearch, dateFrom
 	return vacancies, nil
 }
 
-func (r *HHVacanciesRetriever) GetVacancy(ID string) (*entities.Vacancy, error) {
+func (r *HHVacanciesRetriever) GetVacancy(ID string) (*models.Vacancy, error) {
 
 	vacancy, err := r.client.GetVacancy(ID)
 	if err != nil {
@@ -58,7 +58,7 @@ func (r *HHVacanciesRetriever) GetVacancy(ID string) (*entities.Vacancy, error) 
 		skills = append(skills, skill.Name)
 	}
 
-	return &entities.Vacancy{
+	return &models.Vacancy{
 		ID:          vacancy.ID,
 		Url:         vacancy.Url,
 		Name:        vacancy.Name,
@@ -68,9 +68,9 @@ func (r *HHVacanciesRetriever) GetVacancy(ID string) (*entities.Vacancy, error) 
 	}, nil
 }
 
-func createHhSearchParams(search *entities.JobSearch, dateFrom time.Time, page, pageSize int) (*hh.SearchParameters, error) {
+func createHhSearchParams(search *models.JobSearch, dateFrom time.Time, page, pageSize int) (*hh.SearchParameters, error) {
 	var err error
-	schedules := lo.Map(search.SchedulesAsArray(), func(s entities.Schedule, _ int) hh.Schedule {
+	schedules := lo.Map(search.SchedulesAsArray(), func(s models.Schedule, _ int) hh.Schedule {
 		schedule, _err := hh.ScheduleFrom(s)
 		if _err != nil {
 			err = _err

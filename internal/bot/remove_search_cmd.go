@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/asaskevich/EventBus"
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/maxaizer/hh-parser/internal/entities"
-	"github.com/maxaizer/hh-parser/internal/events"
+	"github.com/maxaizer/hh-parser/internal/domain/events"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	log "github.com/sirupsen/logrus"
 )
@@ -27,7 +27,7 @@ type removeSearchCommand struct {
 func newRemoveSearchCommand(api apiInterface, chatID int64, bus EventBus.Bus, searchRepo searchRepository) (*removeSearchCommand, error) {
 
 	cmd := removeSearchCommand{api: api, chatID: chatID, bus: bus, searches: searchRepo}
-	input, err := newSearchInput(chatID, searchRepo, func(s *entities.JobSearch) {
+	input, err := newSearchInput(chatID, searchRepo, func(s *models.JobSearch) {
 		cmd.searchID = s.ID
 		cmd.searchInputFinished = true
 	})

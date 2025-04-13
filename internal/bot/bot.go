@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"github.com/asaskevich/EventBus"
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/maxaizer/hh-parser/internal/entities"
-	"github.com/maxaizer/hh-parser/internal/events"
+	"github.com/maxaizer/hh-parser/internal/domain/events"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	log "github.com/sirupsen/logrus"
 	"slices"
@@ -26,10 +26,10 @@ type dataRepository interface {
 }
 
 type searchRepository interface {
-	GetByUser(ctx context.Context, userID int64) ([]entities.JobSearch, error)
-	GetByID(ctx context.Context, ID int64) (*entities.JobSearch, error)
-	Add(ctx context.Context, search entities.JobSearch) error
-	Update(ctx context.Context, search entities.JobSearch) error
+	GetByUser(ctx context.Context, userID int64) ([]models.JobSearch, error)
+	GetByID(ctx context.Context, ID int64) (*models.JobSearch, error)
+	Add(ctx context.Context, search models.JobSearch) error
+	Update(ctx context.Context, search models.JobSearch) error
 	Remove(ctx context.Context, ID int) error
 }
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	log "github.com/sirupsen/logrus"
 	"strconv"
@@ -20,9 +20,9 @@ type addSearchCommand struct {
 	inputHandlers        []inputHandler
 	curHandlerIndex      int
 	searchText           string
-	experience           entities.Experience
+	experience           models.Experience
 	regionID             string
-	schedules            []entities.Schedule
+	schedules            []models.Schedule
 	wish                 string
 	initialSearchPeriod  int
 	finishCallback       func()
@@ -39,7 +39,7 @@ func newAddSearchCommand(api apiInterface, chatID int64, userRepo searchReposito
 		cmd.curHandlerIndex++
 	})
 
-	experience := newExperienceInput(chatID, func(experience entities.Experience) {
+	experience := newExperienceInput(chatID, func(experience models.Experience) {
 		cmd.experience = experience
 		cmd.curHandlerIndex++
 	})
@@ -49,7 +49,7 @@ func newAddSearchCommand(api apiInterface, chatID int64, userRepo searchReposito
 		cmd.curHandlerIndex++
 	})
 
-	schedule := newScheduleInput(chatID, func(schedules []entities.Schedule) {
+	schedule := newScheduleInput(chatID, func(schedules []models.Schedule) {
 		cmd.schedules = schedules
 		cmd.curHandlerIndex++
 	})
@@ -78,9 +78,9 @@ func (c *addSearchCommand) SaveState() ([]byte, error) {
 	return json.Marshal(&struct {
 		CurHandlerIndex     int
 		SearchText          string
-		Experience          entities.Experience
+		Experience          models.Experience
 		RegionID            string
-		Schedules           []entities.Schedule
+		Schedules           []models.Schedule
 		Wish                string
 		InitialSearchPeriod int
 		*Alias
@@ -102,9 +102,9 @@ func (c *addSearchCommand) LoadState(data []byte) error {
 	aux := &struct {
 		CurHandlerIndex     int
 		SearchText          string
-		Experience          entities.Experience
+		Experience          models.Experience
 		RegionID            string
-		Schedules           []entities.Schedule
+		Schedules           []models.Schedule
 		Wish                string
 		InitialSearchPeriod int
 		*Alias
@@ -156,7 +156,7 @@ func (c *addSearchCommand) OnUserInput(input string) {
 
 func (c *addSearchCommand) addSearch() {
 
-	search := entities.NewJobSearch(c.chatID, c.searchText, c.regionID, c.experience, c.schedules, c.wish, c.initialSearchPeriod)
+	search := models.NewJobSearch(c.chatID, c.searchText, c.regionID, c.experience, c.schedules, c.wish, c.initialSearchPeriod)
 	msg := botApi.NewMessage(c.chatID, "")
 	if c.finalMessageKeyboard != nil {
 		msg.ReplyMarkup = c.finalMessageKeyboard

@@ -2,17 +2,17 @@ package bot
 
 import (
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"strconv"
 	"strings"
 )
 
 type scheduleInput struct {
 	chatID   int64
-	onFinish func(schedules []entities.Schedule)
+	onFinish func(schedules []models.Schedule)
 }
 
-func newScheduleInput(chatID int64, onFinish func(schedules []entities.Schedule)) *scheduleInput {
+func newScheduleInput(chatID int64, onFinish func(schedules []models.Schedule)) *scheduleInput {
 	return &scheduleInput{chatID: chatID, onFinish: onFinish}
 }
 
@@ -41,16 +41,16 @@ func (a *scheduleInput) HandleInput(input string) botApi.Chattable {
 		}
 	}
 
-	var res []entities.Schedule
+	var res []models.Schedule
 
 	for i := 0; i < len(schedules); i++ {
 		switch schedules[i] {
 		case "1":
-			res = append(res, entities.FullDay)
+			res = append(res, models.FullDay)
 		case "2":
-			res = append(res, entities.Flexible)
+			res = append(res, models.Flexible)
 		case "3":
-			res = append(res, entities.Remote)
+			res = append(res, models.Remote)
 		default:
 			return botApi.NewMessage(a.chatID, "Неверный ввод.")
 		}

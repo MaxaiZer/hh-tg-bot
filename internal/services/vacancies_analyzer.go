@@ -5,9 +5,9 @@ import (
 	"crypto/sha256"
 	"errors"
 	"github.com/asaskevich/EventBus"
-	"github.com/maxaizer/hh-parser/internal/entities"
-	errs "github.com/maxaizer/hh-parser/internal/errors"
-	"github.com/maxaizer/hh-parser/internal/events"
+	errs "github.com/maxaizer/hh-parser/internal/domain/errors"
+	events2 "github.com/maxaizer/hh-parser/internal/domain/events"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	"github.com/maxaizer/hh-parser/internal/metrics"
 	log "github.com/sirupsen/logrus"
@@ -17,31 +17,31 @@ import (
 )
 
 type vacanciesAIService interface {
-	DoesVacancyMatchSearch(ctx context.Context, search entities.JobSearch, vacancy entities.Vacancy) (bool, error)
+	DoesVacancyMatchSearch(ctx context.Context, search models.JobSearch, vacancy models.Vacancy) (bool, error)
 }
 
 type vacanciesRetriever interface {
-	GetVacancies(search *entities.JobSearch, dateFrom time.Time, page, pageSize int) ([]entities.Vacancy, error)
-	GetVacancy(ID string) (*entities.Vacancy, error)
+	GetVacancies(search *models.JobSearch, dateFrom time.Time, page, pageSize int) ([]models.Vacancy, error)
+	GetVacancy(ID string) (*models.Vacancy, error)
 }
 
 type searchRepository interface {
-	Get(ctx context.Context, limit int, offset int) ([]entities.JobSearch, error)
-	GetByID(ctx context.Context, ID int64) (*entities.JobSearch, error)
-	UpdateLastCheckedVacancy(ctx context.Context, searchID int, vacancy entities.Vacancy) error
+	Get(ctx context.Context, limit int, offset int) ([]models.JobSearch, error)
+	GetByID(ctx context.Context, ID int64) (*models.JobSearch, error)
+	UpdateLastCheckedVacancy(ctx context.Context, searchID int, vacancy models.Vacancy) error
 }
 
 type vacancyRepository interface {
-	IsSentToUser(ctx context.Context, vacancy entities.NotifiedVacancyID) (bool, error)
-	RecordAsSentToUser(ctx context.Context, vacancy entities.NotifiedVacancyID) error
+	IsSentToUser(ctx context.Context, vacancy models.NotifiedVacancyID) (bool, error)
+	RecordAsSentToUser(ctx context.Context, vacancy models.NotifiedVacancyID) error
 	AddFailedToAnalyze(ctx context.Context, searchID int, vacancyID string, error string) error
 	RemoveFailedToAnalyze(ctx context.Context, maxAttempts int, minUpdateTime time.Time) (int64, error)
-	GetFailedToAnalyze(ctx context.Context) ([]entities.FailedVacancy, error)
+	GetFailedToAnalyze(ctx context.Context) ([]models.FailedVacancy, error)
 }
 
 type analysisRequest struct {
-	search  *entities.JobSearch
-	vacancy *entities.Vacancy
+	search  *models.JobSearch
+	vacancy *models.Vacancy
 }
 
 type analysisError struct {
@@ -74,14 +74,14 @@ func NewVacanciesAnalyzer(bus EventBus.Bus, aiService vacanciesAIService, vacanc
 		analysisInterval: analysisInterval,
 	}
 
-	err := bus.Subscribe(events.SearchDeletedTopic, func(event events.SearchDeleted) {
+	err := bus.Subscribe(events2.SearchDeletedTopic, func(event events2.SearchDeleted) {
 		v.cancelSearchAnalyze(event.SearchID)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	err = bus.Subscribe(events.SearchEditedTopic, func(event events.SearchEdited) {
+	err = bus.Subscribe(events2.SearchEditedTopic, func(event events2.SearchEdited) {
 		v.cancelSearchAnalyze(event.SearchID)
 	})
 	if err != nil {
@@ -175,7 +175,7 @@ func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
 	startTime := time.Now().UTC()
 	fetchedTotal := 0
 
-	searches := make(map[int]*entities.JobSearch)
+	searches := make(map[int]*models.JobSearch)
 	requestChan := make(chan analysisRequest, 10)
 	errChan := make(chan analysisError, 10)
 	errHandler := newErrorHandler(v.vacancies)
@@ -214,7 +214,7 @@ func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
 	fetchedTotal += len(vacancies)
 	for _, vacancyInfo := range vacancies {
 
-		var search *entities.JobSearch
+		var search *models.JobSearch
 		var ok bool
 
 		if search, ok = searches[vacancyInfo.SearchID]; !ok {
@@ -238,7 +238,7 @@ func (v *VacanciesAnalyzer) rerunAnalysisForFailedVacancies() {
 }
 
 func (v *VacanciesAnalyzer) runAnalysisForUserSearch(wg *sync.WaitGroup, errChan chan<- analysisError,
-	search entities.JobSearch) {
+	search models.JobSearch) {
 
 	var dateFrom = search.LastCheckedVacancyTime
 	if dateFrom.IsZero() {
@@ -253,7 +253,7 @@ func (v *VacanciesAnalyzer) runAnalysisForUserSearch(wg *sync.WaitGroup, errChan
 	v.searchContexts.Store(search.ID, cancel)
 
 	wg.Add(1)
-	go func(context.Context, entities.JobSearch, time.Time) {
+	go func(context.Context, models.JobSearch, time.Time) {
 		defer wg.Done()
 		defer v.searchContexts.Delete(search.ID)
 		v.analyzeVacanciesForSearch(searchCtx, errChan, search, dateFrom)
@@ -261,11 +261,11 @@ func (v *VacanciesAnalyzer) runAnalysisForUserSearch(wg *sync.WaitGroup, errChan
 }
 
 func (v *VacanciesAnalyzer) analyzeVacanciesForSearch(ctx context.Context, errChan chan<- analysisError,
-	search entities.JobSearch, dateFrom time.Time) {
+	search models.JobSearch, dateFrom time.Time) {
 
 	var pageSize, fetchedTotal = 20, 0
 
-	var latestVacancy *entities.Vacancy
+	var latestVacancy *models.Vacancy
 	requestChan := make(chan analysisRequest, pageSize)
 
 	wg := &sync.WaitGroup{}
@@ -346,7 +346,7 @@ func (v *VacanciesAnalyzer) analyzeVacancies(ctx context.Context, requestChan <-
 	}
 }
 
-func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy entities.Vacancy, search entities.JobSearch) error {
+func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy models.Vacancy, search models.JobSearch) error {
 
 	vacancy.Description = removeExtraSpaces(removeHtmlTags(vacancy.Description))
 	vacancyID := createIdForNotifiedVacancy(vacancy, search)
@@ -381,7 +381,7 @@ func (v *VacanciesAnalyzer) analyzeVacancyWithAI(ctx context.Context, vacancy en
 	return nil
 }
 
-func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy entities.Vacancy, search entities.JobSearch) error {
+func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy models.Vacancy, search models.JobSearch) error {
 
 	vacancyID := createIdForNotifiedVacancy(vacancy, search)
 	if err := v.vacancies.RecordAsSentToUser(ctx, vacancyID); err != nil {
@@ -392,8 +392,8 @@ func (v *VacanciesAnalyzer) handleApproveByAI(ctx context.Context, vacancy entit
 			Errorf("failed to record vacancy as send to user: %v", err)
 		return err
 	}
-	event := events.VacancyFound{Search: search, Name: vacancy.Name, Url: vacancy.Url}
-	v.bus.Publish(events.VacancyFoundTopic, event)
+	event := events2.VacancyFound{Search: search, Name: vacancy.Name, Url: vacancy.Url}
+	v.bus.Publish(events2.VacancyFoundTopic, event)
 	return nil
 }
 
@@ -404,10 +404,10 @@ func (v *VacanciesAnalyzer) cancelSearchAnalyze(searchID int) {
 	}
 }
 
-func createIdForNotifiedVacancy(vacancy entities.Vacancy, search entities.JobSearch) entities.NotifiedVacancyID {
+func createIdForNotifiedVacancy(vacancy models.Vacancy, search models.JobSearch) models.NotifiedVacancyID {
 
 	descriptionHash := sha256.Sum256([]byte(vacancy.Description))
-	return entities.NotifiedVacancyID{
+	return models.NotifiedVacancyID{
 		UserID:          search.UserID,
 		VacancyID:       vacancy.ID,
 		DescriptionHash: descriptionHash[:],

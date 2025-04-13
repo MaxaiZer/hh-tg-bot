@@ -1,11 +1,13 @@
 package events
 
-import "github.com/maxaizer/hh-parser/internal/entities"
+import (
+	"github.com/maxaizer/hh-parser/internal/domain/models"
+)
 
 var VacancyFoundTopic = "VacancyFoundEvent"
 
 type VacancyFound struct {
-	Search entities.JobSearch
+	Search models.JobSearch
 	Name   string
 	Url    string
 }

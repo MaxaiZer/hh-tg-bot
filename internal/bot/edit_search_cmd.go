@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/asaskevich/EventBus"
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/maxaizer/hh-parser/internal/entities"
-	"github.com/maxaizer/hh-parser/internal/events"
+	"github.com/maxaizer/hh-parser/internal/domain/events"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/maxaizer/hh-parser/internal/logger"
 	log "github.com/sirupsen/logrus"
 	"strconv"
@@ -29,7 +29,7 @@ type editSearchCommand struct {
 	searches             searchRepository
 	inputHandlers        [4]inputHandler
 	curInputIdx          int
-	search               *entities.JobSearch
+	search               *models.JobSearch
 	finishCallback       func()
 	finalMessageKeyboard *botApi.ReplyKeyboardMarkup
 }
@@ -39,7 +39,7 @@ func newEditSearchCommand(api apiInterface, chatID int64, bus EventBus.Bus, sear
 	cmd := editSearchCommand{api: api, chatID: chatID, bus: bus, searches: searchRepo, curInputIdx: inputSearchStep}
 
 	var err error
-	cmd.inputHandlers[inputSearchStep], err = newSearchInput(chatID, searchRepo, func(s *entities.JobSearch) {
+	cmd.inputHandlers[inputSearchStep], err = newSearchInput(chatID, searchRepo, func(s *models.JobSearch) {
 		cmd.search = s
 		cmd.curInputIdx = inputFieldToEditStep
 	})

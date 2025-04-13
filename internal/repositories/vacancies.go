@@ -3,8 +3,8 @@ package repositories
 import (
 	"context"
 	"errors"
-	"github.com/maxaizer/hh-parser/internal/entities"
-	errs "github.com/maxaizer/hh-parser/internal/errors"
+	errs "github.com/maxaizer/hh-parser/internal/domain/errors"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"gorm.io/gorm"
 	"strings"
 	"time"
@@ -18,8 +18,8 @@ func NewVacanciesRepository(db *gorm.DB) *Vacancies {
 	return &Vacancies{db: db}
 }
 
-func (v *Vacancies) IsSentToUser(ctx context.Context, vacancy entities.NotifiedVacancyID) (bool, error) {
-	var notified entities.NotifiedVacancy
+func (v *Vacancies) IsSentToUser(ctx context.Context, vacancy models.NotifiedVacancyID) (bool, error) {
+	var notified models.NotifiedVacancy
 	err := v.db.WithContext(ctx).
 		Where("user_id = ? AND (vacancy_id = ? OR description_hash = ?)",
 			vacancy.UserID, vacancy.VacancyID, vacancy.DescriptionHash).
@@ -33,15 +33,15 @@ func (v *Vacancies) IsSentToUser(ctx context.Context, vacancy entities.NotifiedV
 	}
 
 	err = v.db.WithContext(ctx).
-		Model(&entities.NotifiedVacancy{}).
+		Model(&models.NotifiedVacancy{}).
 		Where("id = ?", notified.ID).
 		Update("last_checked_at", time.Now().UTC()).Error
 	return true, err
 }
 
-func (v *Vacancies) RecordAsSentToUser(ctx context.Context, vacancy entities.NotifiedVacancyID) error {
+func (v *Vacancies) RecordAsSentToUser(ctx context.Context, vacancy models.NotifiedVacancyID) error {
 
-	err := v.db.WithContext(ctx).Create(&entities.NotifiedVacancy{
+	err := v.db.WithContext(ctx).Create(&models.NotifiedVacancy{
 		UserID:          vacancy.UserID,
 		VacancyID:       vacancy.VacancyID,
 		DescriptionHash: vacancy.DescriptionHash,
@@ -55,7 +55,7 @@ func (v *Vacancies) RecordAsSentToUser(ctx context.Context, vacancy entities.Not
 }
 
 func (v *Vacancies) RemoveOldVacancies(ctx context.Context, expirationTime time.Time) (int64, error) {
-	res := v.db.WithContext(ctx).Delete(&entities.NotifiedVacancy{}, "last_checked_at < ?", expirationTime.UTC())
+	res := v.db.WithContext(ctx).Delete(&models.NotifiedVacancy{}, "last_checked_at < ?", expirationTime.UTC())
 	return res.RowsAffected, res.Error
 }
 
@@ -71,13 +71,13 @@ func (v *Vacancies) AddFailedToAnalyze(ctx context.Context, searchID int, vacanc
 }
 
 func (v *Vacancies) RemoveFailedToAnalyze(ctx context.Context, maxAttempts int, minUpdateTime time.Time) (int64, error) {
-	res := v.db.WithContext(ctx).Delete(&entities.FailedVacancy{}, "attempts > ? OR updated_at < ?",
+	res := v.db.WithContext(ctx).Delete(&models.FailedVacancy{}, "attempts > ? OR updated_at < ?",
 		maxAttempts, minUpdateTime.UTC())
 	return res.RowsAffected, res.Error
 }
 
-func (v *Vacancies) GetFailedToAnalyze(ctx context.Context) ([]entities.FailedVacancy, error) {
-	var vacancies []entities.FailedVacancy
+func (v *Vacancies) GetFailedToAnalyze(ctx context.Context) ([]models.FailedVacancy, error) {
+	var vacancies []models.FailedVacancy
 	err := v.db.WithContext(ctx).Find(&vacancies).Error
 	return vacancies, err
 }

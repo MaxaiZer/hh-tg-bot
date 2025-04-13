@@ -2,7 +2,7 @@ package bot
 
 import (
 	botApi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 )
 
 type experienceLevel string
@@ -16,10 +16,10 @@ const (
 
 type experienceInput struct {
 	chatID   int64
-	onFinish func(experience entities.Experience)
+	onFinish func(experience models.Experience)
 }
 
-func newExperienceInput(chatID int64, onFinish func(experience entities.Experience)) *experienceInput {
+func newExperienceInput(chatID int64, onFinish func(experience models.Experience)) *experienceInput {
 	return &experienceInput{chatID: chatID, onFinish: onFinish}
 }
 
@@ -31,17 +31,17 @@ func (a *experienceInput) InitMessage() botApi.Chattable {
 
 func (a *experienceInput) HandleInput(input string) botApi.Chattable {
 
-	var experience entities.Experience
+	var experience models.Experience
 
 	switch experienceLevel(input) {
 	case noExperience:
-		experience = entities.NoExperience
+		experience = models.NoExperience
 	case between1and3:
-		experience = entities.Between1and3
+		experience = models.Between1and3
 	case between3and6:
-		experience = entities.Between3and6
+		experience = models.Between3and6
 	case moreThan6:
-		experience = entities.MoreThan6
+		experience = models.MoreThan6
 	default:
 		return botApi.NewMessage(a.chatID, "Неправильный ввод 😔.")
 	}

@@ -2,7 +2,7 @@ package repositories
 
 import (
 	"context"
-	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
@@ -16,14 +16,14 @@ func NewDataRepository(db *gorm.DB) *Data {
 }
 
 func (repo *Data) Save(ctx context.Context, id string, data []byte) error {
-	return repo.db.WithContext(ctx).Save(entities.ArbitraryData{
+	return repo.db.WithContext(ctx).Save(models.ArbitraryData{
 		ID:    id,
 		Value: data,
 	}).Error
 }
 
 func (repo *Data) Load(ctx context.Context, id string) ([]byte, error) {
-	data := &entities.ArbitraryData{}
+	data := &models.ArbitraryData{}
 	err := repo.db.WithContext(ctx).First(data, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -44,5 +44,5 @@ func (repo *Data) LoadAndRemove(ctx context.Context, id string) ([]byte, error) 
 }
 
 func (repo *Data) Remove(ctx context.Context, id string) error {
-	return repo.db.WithContext(ctx).Delete(&entities.ArbitraryData{}, "id = ?", id).Error
+	return repo.db.WithContext(ctx).Delete(&models.ArbitraryData{}, "id = ?", id).Error
 }

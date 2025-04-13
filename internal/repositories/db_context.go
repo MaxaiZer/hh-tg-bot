@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/glebarez/sqlite"
 	"github.com/maxaizer/hh-parser/internal/clients/hh"
-	"github.com/maxaizer/hh-parser/internal/entities"
+	"github.com/maxaizer/hh-parser/internal/domain/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -25,33 +25,33 @@ func NewDbContext(connectionString string) (*DbContext, error) {
 }
 
 func (c *DbContext) Migrate() error {
-	err := c.DB.AutoMigrate(entities.Region{})
+	err := c.DB.AutoMigrate(models.Region{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate Region entity: %w", err)
 	}
 
-	err = c.DB.AutoMigrate(entities.JobSearch{})
+	err = c.DB.AutoMigrate(models.JobSearch{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate JobSearch entity: %w", err)
 	}
 
-	err = c.DB.AutoMigrate(entities.NotifiedVacancy{})
+	err = c.DB.AutoMigrate(models.NotifiedVacancy{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate NotifiedVacancy entity: %w", err)
 	}
 
-	err = c.DB.AutoMigrate(entities.FailedVacancy{})
+	err = c.DB.AutoMigrate(models.FailedVacancy{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate FailedVacancy entity: %w", err)
 	}
 
-	err = c.DB.AutoMigrate(entities.ArbitraryData{})
+	err = c.DB.AutoMigrate(models.ArbitraryData{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate ArbitraryData entity: %w", err)
 	}
 
 	var regionsCount int64
-	if err = c.DB.Model(entities.Region{}).Count(&regionsCount).Error; err != nil {
+	if err = c.DB.Model(models.Region{}).Count(&regionsCount).Error; err != nil {
 		return fmt.Errorf("failed to count regions: %w", err)
 	}
 
@@ -77,10 +77,10 @@ func (c *DbContext) PopulateRegions() error {
 		return fmt.Errorf("failed to get areas from client: %w", err)
 	}
 
-	var regions []entities.Region
+	var regions []models.Region
 
 	for _, area := range areas {
-		region := entities.NewRegion(area.ID, area.Name)
+		region := models.NewRegion(area.ID, area.Name)
 		regions = append(regions, region)
 	}
 

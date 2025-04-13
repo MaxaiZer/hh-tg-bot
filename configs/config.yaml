@@ -1,14 +1,9 @@
-bot:
-  ai_key: "test_value"
-  token: "test_value"
-  analysis_interval: "1h"
-  vacancy_expiration_days: 14
-  hh_max_requests_per_second: 1
-  ai_model: "gemini-2.0-flash"
-  ai_max_requests_per_minute: 15
-  ai_max_requests_per_day: 1500
-logger:
-  log_level: INFO
-  output_file: ./logs/log.txt
-db:
-  connection_string: "mydatabase.db"
+ai_key: "test_value"
+tg_token: "test_value"
+analysis_interval: "1h"
+vacancy_expiration_days: 14
+hh_max_requests_per_second: 1
+ai_model: "gemini-2.0-flash"
+ai_max_requests_per_minute: 15
+ai_max_requests_per_day: 1500
+db_connection_string: "mydatabase.db"

@@ -83,8 +83,8 @@ jobs:
       - name: Create .env
         uses: SpicyPizza/create-envfile@v2.0
         with:
-          envkey_ENV: prod
-          envkey_TOKEN: ${{ secrets.TOKEN }}
+          envkey_ENV: production
+          envkey_TG_TOKEN: ${{ secrets.TOKEN }}
           envkey_AI_KEY: ${{ secrets.AI_KEY }}
           envkey_LOKI_URL: ${{ secrets.LOKI_URL }}
           envkey_LOKI_USER: ${{ secrets.LOKI_USER }}

@@ -17,7 +17,7 @@ func upEnvironment() {
 	cfg := config.Get()
 
 	var err error
-	dbCtx, err = repositories.NewDbContext(cfg.DB.ConnectionString)
+	dbCtx, err = repositories.NewDbContext(cfg.DbConnectionString)
 	if err != nil {
 		log.Fatalf("could not create db context: %s", err)
 	}

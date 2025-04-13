@@ -18,22 +18,11 @@ import (
 
 func setupLogger(cfg *config.Config) {
 
-	var level log.Level
-
-	switch cfg.Logger.LogLevel {
-	case config.LevelInfo:
-		level = log.InfoLevel
-	case config.LevelDebug:
-		level = log.DebugLevel
-	case config.LevelWarning:
-		level = log.WarnLevel
-	case config.LevelError:
-		level = log.ErrorLevel
-	case config.LevelFatal:
-		level = log.FatalLevel
-	default:
+	level := log.DebugLevel
+	if cfg.Env == config.Production {
 		level = log.InfoLevel
 	}
+
 	logger.Setup(logger.Config{
 		LogLevel: level,
 	})
@@ -42,20 +31,20 @@ func setupLogger(cfg *config.Config) {
 func runAnalyzer(ctx context.Context, cfg *config.Config, vacancies *repositories.Vacancies,
 	searches *repositories.Searches, bus EventBus.Bus) {
 
-	aiClient, err := gemini.NewClient(ctx, cfg.Bot.AIKey, cfg.Bot.AiModel)
+	aiClient, err := gemini.NewClient(ctx, cfg.AIKey, cfg.AiModel)
 	if err != nil {
 		log.Fatalf("can't create AI service: %v", err)
 	}
-	aiClient.SetMinuteRateLimit(cfg.Bot.AiMaxRequestsPerMinute)
-	aiClient.SetDayRateLimit(cfg.Bot.AiMaxRequestsPerDay)
+	aiClient.SetMinuteRateLimit(cfg.AiMaxRequestsPerMinute)
+	aiClient.SetDayRateLimit(cfg.AiMaxRequestsPerDay)
 
 	hhClient := hh.NewClient()
-	hhClient.SetRateLimit(cfg.Bot.HhMaxRequestsPerSecond)
+	hhClient.SetRateLimit(cfg.HhMaxRequestsPerSecond)
 
 	aiService := services.NewAIService(aiClient)
 	retriever := services.NewHHVacanciesRetriever(hhClient)
 
-	analyzer, err := services.NewVacanciesAnalyzer(bus, aiService, retriever, searches, vacancies, cfg.Bot.AnalysisInterval)
+	analyzer, err := services.NewVacanciesAnalyzer(bus, aiService, retriever, searches, vacancies, cfg.AnalysisInterval)
 	if err != nil {
 		log.Fatalf("can't create analyzer: %v", err)
 	}
@@ -74,7 +63,7 @@ func main() {
 
 	metrics.StartMetricsServer()
 
-	dbContext, err := repositories.NewDbContext(cfg.DB.ConnectionString)
+	dbContext, err := repositories.NewDbContext(cfg.DbConnectionString)
 	if err != nil {
 		log.Fatalf("can't create db context: %v", err)
 	}
@@ -92,7 +81,7 @@ func main() {
 	//ToDo: separate func to run bot
 	bus := EventBus.New()
 
-	tgbot, err := bot.NewBot(cfg.Bot.Token, bus, bot.Repositories{
+	tgbot, err := bot.NewBot(cfg.TgToken, bus, bot.Repositories{
 		Search: searches,
 		Region: regions,
 		Data:   data,
@@ -104,7 +93,7 @@ func main() {
 
 	runAnalyzer(ctx, cfg, vacancies, searches, bus)
 
-	cleaner, err := services.NewVacanciesCleaner(vacancies, cfg.Bot.VacancyExpirationInDays)
+	cleaner, err := services.NewVacanciesCleaner(vacancies, cfg.VacancyExpirationInDays)
 	if err != nil {
 		log.Fatalf("can't create vacancies cleaner: %v", err)
 	}

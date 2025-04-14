@@ -111,3 +111,28 @@ jobs:
             docker compose pull
             docker compose down
             docker compose up -d
+
+      - name: Check containers health
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ${{ env.DIR }}
+            docker compose ps
+            timeout=60
+            echo "⌛ Waiting for containers to become healthy..."
+            while [[ $timeout -gt 0 ]]; do
+              unhealthy=$(docker ps --filter 'health=unhealthy' --format '{{.Names}}')
+              starting=$(docker ps --filter 'health=starting' --format '{{.Names}}')
+              if [[ -z "$unhealthy" && -z "$starting" ]]; then
+                echo "✅ All containers are healthy"
+                exit 0
+              fi
+              sleep 2
+              ((timeout-=2))
+            done
+            echo "❌ Some containers are unhealthy or not ready!"
+            docker ps
+            exit 1
